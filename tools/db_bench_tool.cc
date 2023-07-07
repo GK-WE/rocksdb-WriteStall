@@ -1323,7 +1323,7 @@ DEFINE_uint64(delayed_write_rate, 8388608u,
               "Limited bytes allowed to DB when soft_rate_limit or "
               "level0_slowdown_writes_trigger triggers");
 
-DEFINE_bool(enable_pipelined_write, true,
+DEFINE_bool(enable_pipelined_write, false,
             "Allow WAL and memtable writes to be pipelined");
 
 DEFINE_bool(
@@ -1988,6 +1988,10 @@ class ReporterAgent {
     total_ops_done_.fetch_add(num_ops);
   }
 
+  void ReportDataArrivalRate(int64_t rate){
+    cur_data_arrival_rate_.store(rate);
+  }
+
  private:
   std::string Header() const { return "secs_elapsed,interval_qps"; }
   void SleepAndReport() {
@@ -2029,6 +2033,7 @@ class ReporterAgent {
   Env* env_;
   std::unique_ptr<WritableFile> report_file_;
   std::atomic<int64_t> total_ops_done_;
+  std::atomic<int64_t> cur_data_arrival_rate_;
   int64_t last_report_;
   const uint64_t report_interval_secs_;
   ROCKSDB_NAMESPACE::port::Thread reporting_thread_;
