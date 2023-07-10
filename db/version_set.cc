@@ -2623,8 +2623,10 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
     level0_compact_triggered = true;
     estimated_compaction_needed_bytes_ = level_size;
     bytes_compact_to_next_level = level_size;
+    estimated_compaction_needed_bytes_level0to1_ = level_size;
   } else {
     estimated_compaction_needed_bytes_ = 0;
+    estimated_compaction_needed_bytes_level0to1_ = 0;
   }
 
   // Level 1 and up.
@@ -2649,6 +2651,7 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
     if (level == base_level() && level0_compact_triggered) {
       // Add base level size to compaction if level0 compaction triggered.
       estimated_compaction_needed_bytes_ += level_size;
+      estimated_compaction_needed_bytes_level0to1_ += level_size;
     }
     // Add size added by previous compaction
     level_size += bytes_compact_to_next_level;
@@ -2675,6 +2678,10 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
       }
     }
   }
+#ifndef NDEBUG
+  assert(estimated_compaction_needed_bytes_ >= estimated_compaction_needed_bytes_level0to1_);
+#endif
+  estimated_compaction_needed_bytes_deeperlevel_ = estimated_compaction_needed_bytes_ - estimated_compaction_needed_bytes_level0to1_;
 }
 
 namespace {
