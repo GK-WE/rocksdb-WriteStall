@@ -4153,7 +4153,7 @@ class Benchmark {
       plain_table_options.hash_table_ratio = 0.75;
       options.table_factory = std::shared_ptr<TableFactory>(
           NewPlainTableFactory(plain_table_options));
-      options.input_rate_controller_enabled = fLB::FLAGS_input_rate_controller_enabled;
+      options.input_rate_controller_enabled = FLAGS_input_rate_controller_enabled;
 #else
       fprintf(stderr, "Plain table is not supported in lite mode\n");
       exit(1);
