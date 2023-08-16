@@ -71,7 +71,8 @@ Status BuildTable(
     TableProperties* table_properties, Env::WriteLifeTimeHint write_hint,
     const std::string* full_history_ts_low,
     BlobFileCompletionCallback* blob_callback, uint64_t* num_input_entries,
-    uint64_t* memtable_payload_bytes, uint64_t* memtable_garbage_bytes) {
+    uint64_t* memtable_payload_bytes, uint64_t* memtable_garbage_bytes,
+    ColumnFamilyData* cfd) {
   assert((tboptions.column_family_id ==
           TablePropertiesCollectorFactory::Context::kUnknownColumnFamily) ==
          tboptions.column_family_name.empty());
@@ -169,7 +170,7 @@ Status BuildTable(
           std::move(file), fname, file_options, ioptions.clock, io_tracer,
           ioptions.stats, ioptions.listeners,
           ioptions.file_checksum_gen_factory.get(),
-          tmp_set.Contains(FileType::kTableFile), false));
+          tmp_set.Contains(FileType::kTableFile), false,Env::BK_FLUSH,cfd));
 
       builder = NewTableBuilder(tboptions, file_writer.get());
     }

@@ -80,6 +80,8 @@ struct ImmutableCFOptions {
   std::shared_ptr<SstPartitionerFactory> sst_partitioner_factory;
 
   std::shared_ptr<Cache> blob_cache;
+
+  bool input_rate_cotroller_enabled;
 };
 
 struct ImmutableOptions : public ImmutableDBOptions, public ImmutableCFOptions {

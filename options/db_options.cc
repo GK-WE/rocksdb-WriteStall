@@ -688,6 +688,7 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
           options.verify_sst_unique_id_in_manifest),
       env(options.env),
       rate_limiter(options.rate_limiter),
+      input_rate_controller(options.input_rate_controller),
       sst_file_manager(options.sst_file_manager),
       info_log(options.info_log),
       info_log_level(options.info_log_level),

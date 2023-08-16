@@ -61,6 +61,7 @@ struct DBOptions;
 struct ImmutableDBOptions;
 struct MutableDBOptions;
 class RateLimiter;
+class InputRateController;
 class ThreadStatusUpdater;
 struct ThreadStatus;
 class FileSystem;
@@ -145,6 +146,8 @@ struct EnvOptions {
 
   // If not nullptr, write rate limiting is enabled for flush and compaction
   RateLimiter* rate_limiter = nullptr;
+
+  InputRateController* input_rate_controller = nullptr;
 };
 
 // Exceptions MUST NOT propagate out of overridden functions into RocksDB,
@@ -451,6 +454,13 @@ class Env : public Customizable {
     IO_HIGH = 2,
     IO_USER = 3,
     IO_TOTAL = 4
+  };
+
+  enum BackgroundOp{
+    BK_FLUSH = 0,
+    BK_L0CMP = 1,
+    BK_DLCMP = 2,
+    BK_TOTAL = 3
   };
 
   // Arrange to run "(*function)(arg)" once in a background thread, in

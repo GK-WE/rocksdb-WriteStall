@@ -29,6 +29,7 @@ struct ImmutableDBOptions {
   bool verify_sst_unique_id_in_manifest;
   Env* env;
   std::shared_ptr<RateLimiter> rate_limiter;
+  std::shared_ptr<InputRateController> input_rate_controller;
   std::shared_ptr<SstFileManager> sst_file_manager;
   std::shared_ptr<Logger> info_log;
   InfoLogLevel info_log_level;

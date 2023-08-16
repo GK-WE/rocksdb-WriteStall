@@ -316,6 +316,8 @@ struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // Default: nullptr
   std::shared_ptr<SstPartitionerFactory> sst_partitioner_factory = nullptr;
 
+  bool input_rate_controller_enabled = false;
+
   // Create ColumnFamilyOptions with default values for all fields
   ColumnFamilyOptions();
   // Create ColumnFamilyOptions from Options
@@ -533,6 +535,8 @@ struct DBOptions {
   //
   // Default: nullptr
   std::shared_ptr<RateLimiter> rate_limiter = nullptr;
+
+  std::shared_ptr<InputRateController> input_rate_controller = nullptr;
 
   // Use to track SST files and control their file deletion rate.
   //

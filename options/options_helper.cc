@@ -74,6 +74,7 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
       immutable_db_options.verify_sst_unique_id_in_manifest;
   options.env = immutable_db_options.env;
   options.rate_limiter = immutable_db_options.rate_limiter;
+  options.input_rate_controller = immutable_db_options.input_rate_controller;
   options.sst_file_manager = immutable_db_options.sst_file_manager;
   options.info_log = immutable_db_options.info_log;
   options.info_log_level = immutable_db_options.info_log_level;

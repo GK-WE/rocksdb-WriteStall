@@ -2304,10 +2304,12 @@ Status CompactionJob::OpenCompactionOutputFile(
       sub_compact->compaction->OutputFilePreallocationSize()));
   const auto& listeners =
       sub_compact->compaction->immutable_options()->listeners;
+  int output_level = sub_compact->compaction->output_level();
+  Env::BackgroundOp background_op = (output_level<=1) ? Env::BK_L0CMP : Env::BK_DLCMP;
   sub_compact->outfile.reset(new WritableFileWriter(
       std::move(writable_file), fname, fo_copy, db_options_.clock, io_tracer_,
       db_options_.stats, listeners, db_options_.file_checksum_gen_factory.get(),
-      tmp_set.Contains(FileType::kTableFile), false));
+      tmp_set.Contains(FileType::kTableFile), false,background_op,cfd));
 
   TableBuilderOptions tboptions(
       *cfd->ioptions(), *(sub_compact->compaction->mutable_cf_options()),

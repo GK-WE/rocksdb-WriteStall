@@ -526,6 +526,11 @@ IOStatus WritableFileWriter::WriteBuffered(
                                             RateLimiter::OpType::kWrite);
     }
 
+    if(input_rate_controller_ == nullptr || cfd_ == nullptr){
+      background_op_ = Env::BK_TOTAL;
+    }
+
+
     {
       IOSTATS_TIMER_GUARD(write_nanos);
       TEST_SYNC_POINT("WritableFileWriter::Flush:BeforeAppend");

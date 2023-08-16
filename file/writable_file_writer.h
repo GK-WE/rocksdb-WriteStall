@@ -153,6 +153,9 @@ class WritableFileWriter {
   uint64_t last_sync_size_;
   uint64_t bytes_per_sync_;
   RateLimiter* rate_limiter_;
+  InputRateController* input_rate_controller_;
+  Env::BackgroundOp background_op_;
+  ColumnFamilyData* cfd_;
   Statistics* stats_;
   std::vector<std::shared_ptr<EventListener>> listeners_;
   std::unique_ptr<FileChecksumGenerator> checksum_generator_;
@@ -173,7 +176,9 @@ class WritableFileWriter {
       const std::vector<std::shared_ptr<EventListener>>& listeners = {},
       FileChecksumGenFactory* file_checksum_gen_factory = nullptr,
       bool perform_data_verification = false,
-      bool buffered_data_with_checksum = false)
+      bool buffered_data_with_checksum = false,
+      Env::BackgroundOp background_op = Env::BK_TOTAL,
+      ColumnFamilyData* cfd = nullptr)
       : file_name_(_file_name),
         writable_file_(std::move(file), io_tracer, _file_name),
         clock_(clock),
@@ -187,6 +192,9 @@ class WritableFileWriter {
         last_sync_size_(0),
         bytes_per_sync_(options.bytes_per_sync),
         rate_limiter_(options.rate_limiter),
+        input_rate_controller_(options.input_rate_controller),
+        background_op_(background_op),
+        cfd_(cfd),
         stats_(stats),
         listeners_(),
         checksum_generator_(nullptr),

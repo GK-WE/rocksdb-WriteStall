@@ -371,7 +371,7 @@ class MockWritableFile : public FSWritableFile {
   MockWritableFile(MemFile* file, const FileOptions& opts)
       : file_(file),
         use_direct_io_(opts.use_direct_writes),
-        rate_limiter_(opts.rate_limiter) {
+        rate_limiter_(opts.rate_limiter){
     file_->Ref();
   }
 

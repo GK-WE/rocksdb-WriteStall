@@ -56,6 +56,7 @@
 #include "rocksdb/perf_context.h"
 #include "rocksdb/persistent_cache.h"
 #include "rocksdb/rate_limiter.h"
+#include "util/input_rate_controller.h"
 #include "rocksdb/secondary_cache.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/slice_transform.h"
@@ -1358,6 +1359,8 @@ DEFINE_uint64(write_thread_slow_yield_usec, 3,
               "other processes or threads want the core.");
 
 DEFINE_uint64(rate_limiter_bytes_per_sec, 0, "Set options.rate_limiter value.");
+
+DEFINE_bool(input_rate_controller_enabled,false,"enable input rate controller");
 
 DEFINE_int64(rate_limiter_refill_period_us, 100 * 1000,
              "Set refill period on rate limiter.");
@@ -4150,6 +4153,7 @@ class Benchmark {
       plain_table_options.hash_table_ratio = 0.75;
       options.table_factory = std::shared_ptr<TableFactory>(
           NewPlainTableFactory(plain_table_options));
+      options.input_rate_controller_enabled = fLB::FLAGS_input_rate_controller_enabled;
 #else
       fprintf(stderr, "Plain table is not supported in lite mode\n");
       exit(1);
@@ -4583,6 +4587,12 @@ class Benchmark {
             FLAGS_rate_limit_bg_reads ? RateLimiter::Mode::kReadsOnly
                                       : RateLimiter::Mode::kWritesOnly,
             FLAGS_rate_limiter_auto_tuned));
+      }
+    }
+
+    if(options.input_rate_controller == nullptr) {
+      if (FLAGS_input_rate_controller_enabled){
+        options.input_rate_controller.reset(NewInputRateController());
       }
     }
 
