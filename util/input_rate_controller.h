@@ -48,6 +48,10 @@ class InputRateController{
   void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
                    const MutableCFOptions& mutable_cf_options);
 
+  std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
+
+  std::string BackgroundOpString(Env::BackgroundOp op);
+
  private:
   std::shared_ptr<SystemClock> clock_;
   std::atomic<int> cur_high_;

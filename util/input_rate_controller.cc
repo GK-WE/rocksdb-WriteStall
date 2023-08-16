@@ -129,9 +129,6 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
                                          ColumnFamilyData* cfd,
                                          Env::BackgroundOp background_op,
                                          const MutableCFOptions& mutable_cf_options) {
-
-  //  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken", cfd->GetName().c_str());
-
   if (alignment > 0) {
     bytes = std::max(alignment, TruncateToPageBoundary(alignment, bytes));
   }
@@ -142,7 +139,8 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
                                       const MutableCFOptions& mutable_cf_options) {
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(cfd,background_op,mutable_cf_options);
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %d io_pri: %d", cfd->GetName().c_str(), (int)background_op, (int)io_pri);
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
   if(io_pri!=IO_HIGH) {
     return;
   }
@@ -160,7 +158,8 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                   Env::BackgroundOp background_op,
                                   const MutableCFOptions& mutable_cf_options) {
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(cfd,background_op,mutable_cf_options);
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %d io_pri: %d", cfd->GetName().c_str(), (int)background_op, (int)io_pri);
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
   if(io_pri==IO_TOTAL) {
     return;
   }
@@ -220,6 +219,40 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     exit_cv_.Signal();
   }
 
+}
+
+std::string InputRateController::BackgroundOpPriorityString(BackgroundOp_Priority io_pri) {
+  std::string res;
+  switch (io_pri) {
+    case IO_STOP: res = "STOP";
+    break;
+    case IO_LOW: res = "LOW";
+    break;
+    case IO_HIGH: res = "HIGH";
+    break;
+    case IO_TOTAL: res = "TOTAL";
+    break;
+    default: res = "NA";
+    break;
+  }
+  return res;
+}
+
+std::string InputRateController::BackgroundOpString(Env::BackgroundOp op) {
+  std::string res;
+  switch (op) {
+    case Env::BK_FLUSH: res = "FLUSH";
+    break;
+    case Env::BK_L0CMP: res = "L0CMP";
+    break;
+    case Env::BK_DLCMP: res = "DLCMP";
+    break;
+    case Env::BK_TOTAL: res = "OTHER";
+    break;
+    default: res = "NA";
+    break;
+  }
+  return res;
 }
 
 InputRateController* NewInputRateController(){
