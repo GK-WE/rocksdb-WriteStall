@@ -892,20 +892,20 @@ ColumnFamilyData::GetWriteStallConditionAndCause(
                  mutable_cf_options.hard_pending_compaction_bytes_limit) {
     return {WriteStallCondition::kStopped,
             WriteStallCause::kPendingCompactionBytes};
-  } else if (!immutable_cf_options.input_rate_cotroller_enabled &&
+  } else if ( // !immutable_cf_options.input_rate_cotroller_enabled &&
       mutable_cf_options.max_write_buffer_number > 3 &&
              num_unflushed_memtables >=
                  mutable_cf_options.max_write_buffer_number - 1 &&
              num_unflushed_memtables - 1 >=
                  immutable_cf_options.min_write_buffer_number_to_merge) {
     return {WriteStallCondition::kDelayed, WriteStallCause::kMemtableLimit};
-  } else if (!immutable_cf_options.input_rate_cotroller_enabled &&
+  } else if (// !immutable_cf_options.input_rate_cotroller_enabled &&
       !mutable_cf_options.disable_auto_compactions &&
              mutable_cf_options.level0_slowdown_writes_trigger >= 0 &&
              num_l0_files >=
                  mutable_cf_options.level0_slowdown_writes_trigger) {
     return {WriteStallCondition::kDelayed, WriteStallCause::kL0FileCountLimit};
-  } else if (!immutable_cf_options.input_rate_cotroller_enabled &&
+  } else if (// !immutable_cf_options.input_rate_cotroller_enabled &&
       !mutable_cf_options.disable_auto_compactions &&
              mutable_cf_options.soft_pending_compaction_bytes_limit > 0 &&
              num_compaction_needed_bytes >=
@@ -953,24 +953,33 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
           mutable_cf_options.max_write_buffer_number);
     } else if (write_stall_condition == WriteStallCondition::kStopped &&
                write_stall_cause == WriteStallCause::kL0FileCountLimit) {
-      if(!ioptions_.input_rate_cotroller_enabled){
-        write_controller_token_ = write_controller->GetStopToken();
-        internal_stats_->AddCFStats(InternalStats::L0_FILE_COUNT_LIMIT_STOPS, 1);
-        if (compaction_picker_->IsLevel0CompactionInProgress()) {
-          internal_stats_->AddCFStats(
-              InternalStats::LOCKED_L0_FILE_COUNT_LIMIT_STOPS, 1);
-        }
+//      if(!ioptions_.input_rate_cotroller_enabled){
+//        write_controller_token_ = write_controller->GetStopToken();
+//        internal_stats_->AddCFStats(InternalStats::L0_FILE_COUNT_LIMIT_STOPS, 1);
+//        if (compaction_picker_->IsLevel0CompactionInProgress()) {
+//          internal_stats_->AddCFStats(
+//              InternalStats::LOCKED_L0_FILE_COUNT_LIMIT_STOPS, 1);
+//        }
+//      }
+      write_controller_token_ = write_controller->GetStopToken();
+      internal_stats_->AddCFStats(InternalStats::L0_FILE_COUNT_LIMIT_STOPS, 1);
+      if (compaction_picker_->IsLevel0CompactionInProgress()) {
+        internal_stats_->AddCFStats(
+            InternalStats::LOCKED_L0_FILE_COUNT_LIMIT_STOPS, 1);
       }
       ROCKS_LOG_WARN(ioptions_.logger,
                      "[%s] Stopping writes because we have %d level-0 files",
                      name_.c_str(), vstorage->l0_delay_trigger_count());
     } else if (write_stall_condition == WriteStallCondition::kStopped &&
                write_stall_cause == WriteStallCause::kPendingCompactionBytes) {
-      if(!ioptions_.input_rate_cotroller_enabled){
-        write_controller_token_ = write_controller->GetStopToken();
-        internal_stats_->AddCFStats(
-            InternalStats::PENDING_COMPACTION_BYTES_LIMIT_STOPS, 1);
-      }
+//      if(!ioptions_.input_rate_cotroller_enabled){
+//        write_controller_token_ = write_controller->GetStopToken();
+//        internal_stats_->AddCFStats(
+//            InternalStats::PENDING_COMPACTION_BYTES_LIMIT_STOPS, 1);
+//      }
+      write_controller_token_ = write_controller->GetStopToken();
+      internal_stats_->AddCFStats(
+          InternalStats::PENDING_COMPACTION_BYTES_LIMIT_STOPS, 1);
       ROCKS_LOG_WARN(
           ioptions_.logger,
           "[%s] Stopping writes because of estimated pending compaction "
