@@ -21,6 +21,8 @@
 #include "util/crc32c.h"
 #include "util/random.h"
 #include "util/rate_limiter.h"
+#include "util/input_rate_controller.h"
+#include "logging/logging.h"
 
 namespace ROCKSDB_NAMESPACE {
 IOStatus WritableFileWriter::Create(const std::shared_ptr<FileSystem>& fs,
@@ -526,9 +528,16 @@ IOStatus WritableFileWriter::WriteBuffered(
                                             RateLimiter::OpType::kWrite);
     }
 
-    if(input_rate_controller_ == nullptr || cfd_ == nullptr){
-      background_op_ = Env::BK_TOTAL;
-    }
+        InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+        if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
+          io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+          ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+        }
+
+        if (io_pri!=InputRateController::IO_TOTAL) {
+          allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
+                                                         *(cfd_->GetCurrentMutableCFOptions()));
+        }
 
 
     {
@@ -555,6 +564,11 @@ IOStatus WritableFileWriter::WriteBuffered(
         } else {
           s = writable_file_->Append(Slice(src, allowed), io_options, nullptr);
         }
+
+        if (io_pri==InputRateController::IO_HIGH){
+          input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+        }
+
         if (!s.ok()) {
           // If writable_file_->Append() failed, then the data may or may not
           // exist in the underlying memory buffer, OS page cache, remote file
@@ -625,6 +639,20 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
     }
   }
 
+  InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+  if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
+    io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+    ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+  }
+  if (io_pri!=InputRateController::IO_TOTAL) {
+    while (data_size > 0) {
+      size_t tmp_size;
+      tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
+                                                      *(cfd_->GetCurrentMutableCFOptions()));
+      data_size -= tmp_size;
+    }
+  }
+
   {
     IOSTATS_TIMER_GUARD(write_nanos);
     TEST_SYNC_POINT("WritableFileWriter::Flush:BeforeAppend");
@@ -647,6 +675,11 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
       s = writable_file_->Append(Slice(src, left), io_options, v_info, nullptr);
       SetPerfLevel(prev_perf_level);
     }
+
+    if (io_pri==InputRateController::IO_HIGH){
+      input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+    }
+
 #ifndef ROCKSDB_LITE
     if (ShouldNotifyListeners()) {
       auto finish_ts = std::chrono::steady_clock::now();
@@ -751,6 +784,16 @@ IOStatus WritableFileWriter::WriteDirect(
                                          RateLimiter::OpType::kWrite);
     }
 
+    InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+    if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
+      io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+      ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+    }
+    if (io_pri!=InputRateController::IO_TOTAL) {
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
+                                                  *(cfd_->GetCurrentMutableCFOptions()));
+    }
+
     {
       IOSTATS_TIMER_GUARD(write_nanos);
       TEST_SYNC_POINT("WritableFileWriter::Flush:BeforeAppend");
@@ -767,6 +810,10 @@ IOStatus WritableFileWriter::WriteDirect(
       } else {
         s = writable_file_->PositionedAppend(Slice(src, size), write_offset,
                                              io_options, nullptr);
+      }
+
+      if (io_pri==InputRateController::IO_HIGH){
+        input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
       }
 
       if (ShouldNotifyListeners()) {
@@ -856,6 +903,20 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
     }
   }
 
+  InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+  if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
+    io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+    ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+  }
+  if (io_pri!=InputRateController::IO_TOTAL) {
+    while (data_size > 0) {
+      size_t size;
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
+                                                  *(cfd_->GetCurrentMutableCFOptions()));
+      data_size -= size;
+    }
+  }
+
   {
     IOSTATS_TIMER_GUARD(write_nanos);
     TEST_SYNC_POINT("WritableFileWriter::Flush:BeforeAppend");
@@ -868,6 +929,10 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
     v_info.checksum = Slice(checksum_buf, sizeof(uint32_t));
     s = writable_file_->PositionedAppend(Slice(src, left), write_offset,
                                          io_options, v_info, nullptr);
+
+    if (io_pri==InputRateController::IO_HIGH){
+      input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+    }
 
     if (ShouldNotifyListeners()) {
       auto finish_ts = std::chrono::steady_clock::now();
