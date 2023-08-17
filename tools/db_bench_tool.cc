@@ -4589,14 +4589,12 @@ class Benchmark {
       }
     }
 
-    if (FLAGS_input_rate_controller_enabled){
-      options.input_rate_controller_enabled = true;
-      options.input_rate_controller.reset(NewInputRateController());
-    }else{
-      options.input_rate_controller_enabled = false;
-      options.input_rate_controller.reset();
+    if(options.input_rate_controller == nullptr){
+      if(FLAGS_input_rate_controller_enabled) {
+        options.input_rate_controller_enabled = true;
+        options.input_rate_controller.reset(NewInputRateController());
+      }
     }
-
 
     options.listeners.emplace_back(listener_);
 
