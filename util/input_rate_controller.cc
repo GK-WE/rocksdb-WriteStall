@@ -21,7 +21,7 @@ struct InputRateController::Req {
 InputRateController::InputRateController()
 : clock_(SystemClock::Default()),
 cur_high_(0),
-timeout_low_(0),
+prev_write_stall_condition_(0),
 exit_cv_(&request_mutex_),
 requests_to_wait_(0),
 stop_(false){}
@@ -52,7 +52,7 @@ InputRateController::~InputRateController() {
   }
 }
 
-int InputRateController::DecideWriteStallCondition(ColumnFamilyData* cfd,
+int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
                                                       const MutableCFOptions& mutable_cf_options){
   int result = InputRateController::WS_NORMAL;
   int num_unflushed_memtables = cfd->imm()->NumNotFlushed();
@@ -64,8 +64,44 @@ int InputRateController::DecideWriteStallCondition(ColumnFamilyData* cfd,
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
     bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
-    bool PS = (estimated_compaction_needed_bytes >= mutable_cf_options.hard_pending_compaction_bytes_limit);
-    result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (PS ? 4 : 0);
+    bool DL = (estimated_compaction_needed_bytes >= mutable_cf_options.hard_pending_compaction_bytes_limit);
+    result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (DL ? 4 : 0);
+  }
+  return result;
+}
+
+int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options) {
+  int cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
+  int result = InputRateController::CUSHION_NORMAL;
+  bool prev_L0 = (cur >> 1) & 1;
+  bool prev_DL = (cur >> 2) & 1;
+  bool cur_L0 = (cur >> 1) & 1;
+  bool cur_DL = (cur >> 2) & 1;
+
+  if(prev_write_stall_condition_ == cur || prev_write_stall_condition_ == WS_NORMAL){
+    return result;
+  }else if(prev_L0 && (!cur_L0)){
+    Version* current = cfd->current();
+    //if L0-CC was previously violated and now is not
+    // we should further check if it leaves room for flush
+    assert(current!=nullptr);
+    auto* vstorage = current->storage_info();
+    int l0_sst_num = vstorage->l0_delay_trigger_count();
+    int l0_sst_limit = mutable_cf_options.level0_stop_writes_trigger;
+    if(l0_sst_num > (int)((l0_sst_limit*3)/4)){
+      result += 1;
+    }
+  }else if(prev_DL && (!cur_DL)){
+    Version* current = cfd->current();
+    //if DL-CC was previously violated and now is not
+    // we should further check if it leaves room for L0-L1
+    assert(current!=nullptr);
+    auto* vstorage = current->storage_info();
+    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
+    int cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
+    if(cmp_bytes_needed > (uint64_t)((cmp_bytes_limit*3)/4)){
+      result += 2;
+    }
   }
   return result;
 }
@@ -74,21 +110,34 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
                                                                                               Env::BackgroundOp background_op,
                                                                                               const MutableCFOptions& mutable_cf_options) {
   InputRateController::BackgroundOp_Priority io_pri;
-  int result = DecideWriteStallCondition(cfd,mutable_cf_options);
+  int result = DecideCurWriteStallCondition(cfd,mutable_cf_options);
+  int cushion = DecideWriteStallChange(cfd,mutable_cf_options);
   switch (result) {
-    case WS_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: IO_HIGH;
+    case WS_NORMAL:
+      switch (cushion) {
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: IO_HIGH;
+          break;
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW);
+          break;
+        case CUSHION_DL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+          break;
+        case CUSHION_DLL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+          break;
+        default: io_pri = IO_TOTAL;
+          break;
+      }
     break;
     case WS_MT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH: IO_LOW; // no background op stopped; Flush HIGH; other LOW
     break;
-    case WS_L0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: IO_LOW; // Flush stopped;
+    case WS_L0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH)?IO_STOP:IO_LOW); // Flush stopped;
     break;
-    case WS_L0MT: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: IO_HIGH; // no background op stopped;
+    case WS_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH) ? IO_STOP : IO_LOW);  //Flush stopped;
     break;
-    case WS_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: IO_LOW; // L0-L1 compaction stopped;
+    case WS_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op == Env::BK_L0CMP)?IO_STOP:IO_LOW); // L0-L1 compaction stopped;
     break;
-    case WS_DLMT: io_pri = (background_op == Env::BK_L0CMP)? IO_LOW: IO_HIGH; // L0-L1 compaction stopped;
+    case WS_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op == Env::BK_L0CMP)?IO_STOP:IO_LOW); // L0-L1 compaction stopped;
     break;
-    case WS_DLL0: io_pri = (background_op == Env::BK_FLUSH)? IO_LOW: IO_HIGH; // Flush stopped;
+    case WS_DLL0: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW); // Flush stopped;
     break;
     case WS_DLL0MT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: IO_LOW;
     break;
@@ -101,15 +150,28 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
 Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(ColumnFamilyData* cfd,
                                                                     const MutableCFOptions& mutable_cf_options) {
   Env::BackgroundOp stopped_op;
-  int result = DecideWriteStallCondition(cfd,mutable_cf_options);
+  int result = DecideCurWriteStallCondition(cfd,mutable_cf_options);
+  int cushion = DecideWriteStallChange(cfd,mutable_cf_options);
   switch (result) {
-    case WS_NORMAL: stopped_op = Env::BK_TOTAL;
+    case WS_NORMAL:
+      switch (cushion) {
+        case CUSHION_NORMAL: stopped_op = Env::BK_TOTAL;
+        break;
+        case CUSHION_L0: stopped_op = Env::BK_FLUSH;
+        break;
+        case CUSHION_DL: stopped_op = Env::BK_L0CMP;
+        break;
+        case CUSHION_DLL0: stopped_op = Env::BK_L0CMP;
+        break;
+        default: stopped_op = Env::BK_TOTAL;
+        break;
+      }
     break;
     case WS_MT: stopped_op = Env::BK_TOTAL;
     break;
     case WS_L0: stopped_op = Env::BK_FLUSH;
     break;
-    case WS_L0MT: stopped_op = Env::BK_TOTAL;
+    case WS_L0MT: stopped_op = Env::BK_FLUSH;
     break;
     case WS_DL: stopped_op = Env::BK_L0CMP;
     break;
@@ -123,6 +185,13 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(ColumnFamilyDat
     break;
   }
   return stopped_op;
+}
+
+void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token) {
+  need_request_token = DecideBackgroundOpPriority(
+                           cfd, background_op, mutable_cf_options) != IO_TOTAL;
+  need_request_token = DecideBackgroundOpPriority(
+                            cfd, background_op, mutable_cf_options) == IO_HIGH;
 }
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
@@ -163,6 +232,8 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(io_pri==IO_TOTAL) {
     return;
   }
+
+  UpdatePrevWSCondition(DecideCurWriteStallCondition(cfd,mutable_cf_options));
   Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(cfd, mutable_cf_options);
 
 
@@ -183,6 +254,8 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
     r.cv.Wait();
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
   }else if(io_pri == IO_HIGH){
     ++cur_high_;
     std::deque<Req*> queue;
@@ -202,11 +275,15 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       while(cur_high_>0){
         r.cv.Wait();
       }
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
     }else{
       while(cur_high_>0 && !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
     }
 
     // When LOW thread is signaled, it should be removed from low_bkop_queue_ by itself

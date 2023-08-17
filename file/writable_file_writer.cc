@@ -528,13 +528,13 @@ IOStatus WritableFileWriter::WriteBuffered(
                                             RateLimiter::OpType::kWrite);
     }
 
-        InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+        bool need_request_token = false;
+        bool need_return_token = false;
         if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-          io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
-//          ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+          input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
         }
 
-        if (io_pri!=InputRateController::IO_TOTAL) {
+        if (need_request_token) {
           allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
                                                          *(cfd_->GetCurrentMutableCFOptions()));
         }
@@ -565,7 +565,7 @@ IOStatus WritableFileWriter::WriteBuffered(
           s = writable_file_->Append(Slice(src, allowed), io_options, nullptr);
         }
 
-        if (io_pri==InputRateController::IO_HIGH){
+        if (need_return_token){
           input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
         }
 
@@ -639,12 +639,12 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
     }
   }
 
-  InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+  bool need_request_token = false;
+  bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
-//    ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+    input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
   }
-  if (io_pri!=InputRateController::IO_TOTAL) {
+  if (need_request_token) {
     while (data_size > 0) {
       size_t tmp_size;
       tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
@@ -676,7 +676,7 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
       SetPerfLevel(prev_perf_level);
     }
 
-    if (io_pri==InputRateController::IO_HIGH){
+    if (need_return_token){
       input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
     }
 
@@ -784,12 +784,12 @@ IOStatus WritableFileWriter::WriteDirect(
                                          RateLimiter::OpType::kWrite);
     }
 
-    InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+    bool need_request_token = false;
+    bool need_return_token = false;
     if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-      io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
-//      ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+      input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
     }
-    if (io_pri!=InputRateController::IO_TOTAL) {
+    if (need_request_token) {
       size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
                                                   *(cfd_->GetCurrentMutableCFOptions()));
     }
@@ -812,7 +812,7 @@ IOStatus WritableFileWriter::WriteDirect(
                                              io_options, nullptr);
       }
 
-      if (io_pri==InputRateController::IO_HIGH){
+      if (need_return_token){
         input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
       }
 
@@ -903,12 +903,12 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
     }
   }
 
-  InputRateController::BackgroundOp_Priority io_pri = InputRateController::IO_TOTAL;
+  bool need_request_token = false;
+  bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    io_pri = input_rate_controller_->DecideBackgroundOpPriority(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()));
-//    ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] backgroundop: %d io_pri: %d", cfd_->GetName().c_str(), (int)background_op_, (int)io_pri);
+    input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
   }
-  if (io_pri!=InputRateController::IO_TOTAL) {
+  if (need_request_token) {
     while (data_size > 0) {
       size_t size;
       size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
@@ -930,7 +930,7 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
     s = writable_file_->PositionedAppend(Slice(src, left), write_offset,
                                          io_options, v_info, nullptr);
 
-    if (io_pri==InputRateController::IO_HIGH){
+    if (need_return_token){
       input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
     }
 

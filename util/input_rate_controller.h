@@ -34,28 +34,44 @@ class InputRateController{
     WS_TOTAL = 8
   };
 
-  int DecideWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
+  enum WriteStall_Cushion{
+    CUSHION_NORMAL = 0,
+    CUSHION_L0 = 1, // prev state include WS_L0, but now L0 is not decreased to a safty value
+    CUSHION_DL = 2, //pre state include WS_DL, but now DL is not decreased to a safy value
+    CUSHION_DLL0 = 3, // both L0 and DL
+    CUSHION_TOTAL
+  };
+
+  void DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token);
+
+  size_t RequestToken(size_t bytes, size_t alignment,
+                      ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
+
+  void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
+                   const MutableCFOptions& mutable_cf_options);
+
+ private:
+  int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
+
+  int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
   BackgroundOp_Priority DecideBackgroundOpPriority(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
   Env::BackgroundOp DecideStoppedBackgroundOp(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
-  size_t RequestToken(size_t bytes, size_t alignment,
-                      ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
-
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
-  void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
-                   const MutableCFOptions& mutable_cf_options);
+  static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
 
-  std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
+  static std::string BackgroundOpString(Env::BackgroundOp op);
 
-  std::string BackgroundOpString(Env::BackgroundOp op);
+  void UpdatePrevWSCondition(int cur){
+    prev_write_stall_condition_.store(cur);
+  }
 
- private:
   std::shared_ptr<SystemClock> clock_;
   std::atomic<int> cur_high_;
-  std::atomic<int> timeout_low_;
+  std::atomic<int> prev_write_stall_condition_;
   mutable port::Mutex request_mutex_;
   port::CondVar exit_cv_;
   int32_t requests_to_wait_;
