@@ -10,19 +10,14 @@
 #include "file/writable_file_writer.h"
 
 #include <algorithm>
-#include <mutex>
-
 #include "db/version_edit.h"
 #include "monitoring/histogram.h"
 #include "monitoring/iostats_context_imp.h"
 #include "port/port.h"
-#include "rocksdb/system_clock.h"
 #include "test_util/sync_point.h"
 #include "util/crc32c.h"
-#include "util/random.h"
 #include "util/rate_limiter.h"
 #include "util/input_rate_controller.h"
-#include "logging/logging.h"
 
 namespace ROCKSDB_NAMESPACE {
 IOStatus WritableFileWriter::Create(const std::shared_ptr<FileSystem>& fs,
@@ -566,7 +561,7 @@ IOStatus WritableFileWriter::WriteBuffered(
         }
 
         if (need_return_token){
-          input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+          input_rate_controller_->ReturnToken(cfd_, background_op_);
         }
 
         if (!s.ok()) {
@@ -677,7 +672,7 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
     }
 
     if (need_return_token){
-      input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+      input_rate_controller_->ReturnToken(cfd_, background_op_);
     }
 
 #ifndef ROCKSDB_LITE
@@ -813,7 +808,7 @@ IOStatus WritableFileWriter::WriteDirect(
       }
 
       if (need_return_token){
-        input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+        input_rate_controller_->ReturnToken(cfd_, background_op_);
       }
 
       if (ShouldNotifyListeners()) {
@@ -931,7 +926,7 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
                                          io_options, v_info, nullptr);
 
     if (need_return_token){
-      input_rate_controller_->ReturnToken(cfd_, background_op_,*(cfd_->GetCurrentMutableCFOptions()));
+      input_rate_controller_->ReturnToken(cfd_, background_op_);
     }
 
     if (ShouldNotifyListeners()) {

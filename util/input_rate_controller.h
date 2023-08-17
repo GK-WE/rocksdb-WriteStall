@@ -49,13 +49,13 @@ class InputRateController{
   void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
  private:
-  int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
+  static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
   int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 
-  BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);
+  static BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);
 
-  Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
+  static Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
