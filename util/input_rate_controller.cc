@@ -105,13 +105,9 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
   return result;
 }
 
-InputRateController::BackgroundOp_Priority InputRateController::DecideBackgroundOpPriority(ColumnFamilyData* cfd,
-                                                                                              Env::BackgroundOp background_op,
-                                                                                              const MutableCFOptions& mutable_cf_options,
+InputRateController::BackgroundOp_Priority InputRateController::DecideBackgroundOpPriority(Env::BackgroundOp background_op,
                                                                                            int cur_ws,int cushion) {
   InputRateController::BackgroundOp_Priority io_pri;
-//  int result = DecideCurWriteStallCondition(cfd,mutable_cf_options);
-//  int cushion = DecideWriteStallChange(cfd,mutable_cf_options);
   switch (cur_ws) {
     case WS_NORMAL:
       switch (cushion) {
@@ -147,8 +143,7 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
   return io_pri;
 }
 
-Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(ColumnFamilyData* cfd,
-                                                                 const MutableCFOptions& mutable_cf_options,int cur_ws,int cushion) {
+Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int cushion) {
   Env::BackgroundOp stopped_op;
   switch (cur_ws) {
     case WS_NORMAL:
@@ -189,9 +184,9 @@ void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,E
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   need_request_token = DecideBackgroundOpPriority(
-                           cfd, background_op, mutable_cf_options, ws_cur,cushion) != IO_TOTAL;
+                           background_op, ws_cur,cushion) != IO_TOTAL;
   need_return_token = DecideBackgroundOpPriority(
-      cfd, background_op, mutable_cf_options, ws_cur,cushion) == IO_HIGH;
+      background_op, ws_cur,cushion) == IO_HIGH;
 }
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
@@ -205,8 +200,7 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
   return bytes;
 }
 
-void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
-                                      const MutableCFOptions& mutable_cf_options) {
+void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %s", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   --cur_high_;
@@ -222,7 +216,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                   const MutableCFOptions& mutable_cf_options) {
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
-  InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(cfd,background_op,mutable_cf_options,ws_cur,cushion);
+  InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(background_op,ws_cur,cushion);
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
   if(io_pri==IO_TOTAL) {
@@ -235,7 +229,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     UpdatePrevWSCondition(ws_cur);
   }
 
-  Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(cfd, mutable_cf_options,ws_cur,cushion);
+  Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(ws_cur,cushion);
 
 
   MutexLock g(&request_mutex_);

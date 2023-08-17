@@ -31,7 +31,6 @@ class InputRateController{
     WS_DLMT = 5,     // 101
     WS_DLL0 = 6,     // 110
     WS_DLL0MT = 7,    // 111
-    WS_TOTAL = 8
   };
 
   enum WriteStall_Cushion{
@@ -47,17 +46,16 @@ class InputRateController{
   size_t RequestToken(size_t bytes, size_t alignment,
                       ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
-  void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op,
-                   const MutableCFOptions& mutable_cf_options);
+  void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
  private:
   int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
   int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 
-  BackgroundOp_Priority DecideBackgroundOpPriority(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options,int cur_ws,int cushion);
+  BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);
 
-  Env::BackgroundOp DecideStoppedBackgroundOp(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,int cur_ws,int cushion);
+  Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
