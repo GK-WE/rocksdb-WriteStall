@@ -260,8 +260,9 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       continue;
     }
     std::deque<Req*> queue = stopped_bkop_queue_[i];
-    if(!queue.empty()){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP: %s ", cfd->GetName().c_str(),
+    bool isqueue_empty = queue.empty();
+    if(!isqueue_empty){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
                      BackgroundOpString((Env::BackgroundOp)i).c_str());
@@ -270,9 +271,17 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       queue.front()->cv.Signal();
       queue.pop_front();
     }
+    if(!isqueue_empty){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str());
+    }
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP:  ", cfd->GetName().c_str(),
-                 BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
+
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str());
 
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
@@ -289,13 +298,13 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
         queue.push_back(r);
       }
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-LOW:  ", cfd->GetName().c_str(),
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-LOW-op:  ", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(),
                    BackgroundOpPriorityString(io_pri).c_str());
     for(auto&r : queue){
       r->cv.Signal();
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-LOW:  ", cfd->GetName().c_str(),
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-LOW-op:  ", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(),
                    BackgroundOpPriorityString(io_pri).c_str());
   }else if(io_pri == IO_LOW){
@@ -372,7 +381,7 @@ std::string InputRateController::WSConditionString(int ws) {
       break;
       case WS_MT: res = "WS_MT";
       break;
-      case WS_L0: res = "WS_NORMAL";
+      case WS_L0: res = "WS_L0";
       break;
       case WS_DL: res = "WS_DL";
       break;
