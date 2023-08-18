@@ -225,16 +225,18 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     return;
   }
 
-  if(cushion==CUSHION_NORMAL){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
-                   WSConditionString(prev_write_stall_condition_).c_str(), WSConditionString(ws_cur).c_str());
-    UpdatePrevWSCondition(ws_cur);
-  }
-
   Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(ws_cur,cushion);
 
 
   MutexLock g(&request_mutex_);
+
+  if(cushion==CUSHION_NORMAL && prev_write_stall_condition_!=ws_cur){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
+                   WSConditionString(prev_write_stall_condition_).c_str(), WSConditionString(ws_cur).c_str());
+    UpdatePrevWSCondition(ws_cur);
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
+                   WSConditionString(prev_write_stall_condition_).c_str(), WSConditionString(ws_cur).c_str());
+  }
 
   for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
     if(i==stopped_op){
@@ -251,8 +253,9 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
     r.cv.Wait();
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
   }else if(io_pri == IO_HIGH){
     ++cur_high_;
     std::deque<Req*> queue;
@@ -272,15 +275,17 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       while(cur_high_>0){
         r.cv.Wait();
       }
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
     }else{
       while(cur_high_>0 && !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
     }
 
     // When LOW thread is signaled, it should be removed from low_bkop_queue_ by itself
