@@ -927,7 +927,7 @@ Status FlushJob::WriteLevel0Table() {
           BlobFileCreationReason::kFlush, event_logger_, job_context_->job_id,
           io_priority, &table_properties_, write_hint, full_history_ts_low,
           blob_callback_, &num_input_entries, &memtable_payload_bytes,
-          &memtable_garbage_bytes);
+          &memtable_garbage_bytes,cfd_);
       // TODO: Cleanup io_status in BuildTable and table builders
       assert(!s.ok() || io_s.ok());
       io_s.PermitUncheckedError();
