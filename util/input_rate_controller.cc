@@ -141,6 +141,7 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     default: io_pri = IO_TOTAL;
     break;
   }
+
   return io_pri;
 }
 
@@ -184,21 +185,21 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int 
 void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token) {
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
-  need_request_token = DecideBackgroundOpPriority(
-      background_op, ws_cur,cushion) != IO_TOTAL;
-  need_return_token = DecideBackgroundOpPriority(
-      background_op, ws_cur,cushion) == IO_HIGH;
+  BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(
+      background_op, ws_cur,cushion);
+  need_request_token = (io_pri != IO_TOTAL);
+  need_return_token = (io_pri == IO_HIGH);
 
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s "
-                                         "ws_cur: %s cushion: %s "
+                                         "io_pri: %s ws_cur: %s cushion: %s "
                                          "need_request_token: %s need_return_token %s",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str(),
                  WSConditionString(ws_cur).c_str(),
                  CushionString(cushion).c_str(),
                  need_request_token?"true":"false",
                  need_return_token?"true":"false");
-
 }
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
@@ -258,15 +259,19 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     if(i==stopped_op){
       continue;
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start Signal-STOP: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
     std::deque<Req*> queue = stopped_bkop_queue_[i];
+    if(!queue.empty()){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str());
+    }
     while (!queue.empty()) {
       queue.front()->cv.Signal();
       queue.pop_front();
     }
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-STOP: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP:  ", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
 
   if(background_op == stopped_op){
@@ -284,13 +289,15 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
         queue.push_back(r);
       }
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start Signal-LOW: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-LOW:  ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str());
     for(auto&r : queue){
       r->cv.Signal();
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-LOW: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-LOW:  ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str());
   }else if(io_pri == IO_LOW){
     Req r(bytes, &request_mutex_, background_op);
     low_bkop_queue_.push_back(&r);
