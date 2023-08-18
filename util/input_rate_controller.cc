@@ -76,8 +76,9 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
   bool prev_DL = (ws_cur >> 2) & 1;
   bool cur_L0 = (ws_cur >> 1) & 1;
   bool cur_DL = (ws_cur >> 2) & 1;
+  int pre_ws = prev_write_stall_condition_.load(std::memory_order_relaxed);
 
-  if(prev_write_stall_condition_ == ws_cur || prev_write_stall_condition_ == WS_NORMAL){
+  if( pre_ws == ws_cur || pre_ws == WS_NORMAL){
     return result;
   }else if(prev_L0 && (!cur_L0)){
     Version* current = cfd->current();
@@ -111,7 +112,7 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
   switch (cur_ws) {
     case WS_NORMAL:
       switch (cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: IO_HIGH;
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: ((background_op == Env::BK_L0CMP)?IO_HIGH:IO_TOTAL);
           break;
         case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW);
           break;
@@ -181,14 +182,23 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int 
 }
 
 void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token) {
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s", cfd->GetName().c_str(),
-                 BackgroundOpString(background_op).c_str());
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   need_request_token = DecideBackgroundOpPriority(
-                           background_op, ws_cur,cushion) != IO_TOTAL;
+      background_op, ws_cur,cushion) != IO_TOTAL;
   need_return_token = DecideBackgroundOpPriority(
       background_op, ws_cur,cushion) == IO_HIGH;
+
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s "
+                                         "ws_cur: %s cushion: %s "
+                                         "need_request_token: %s need_return_token %s",
+                 cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(),
+                 WSConditionString(ws_cur).c_str(),
+                 CushionString(cushion).c_str(),
+                 need_request_token?"true":"false",
+                 need_return_token?"true":"false");
+
 }
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
@@ -207,7 +217,7 @@ void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp b
                  BackgroundOpString(background_op).c_str());
   --cur_high_;
   MutexLock g(&request_mutex_);
-  if(cur_high_==0 && !low_bkop_queue_.empty()){
+  if(cur_high_.load(std::memory_order_relaxed)==0 && !low_bkop_queue_.empty()){
     Req* r = low_bkop_queue_.front();
     r->cv.Signal();
   }
@@ -219,8 +229,12 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(background_op,ws_cur,cushion);
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ", cfd->GetName().c_str(),
-                 BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes);
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion when_reqissue: %s",
+                 cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                 WSConditionString(ws_cur).c_str(),
+                 CushionString(cushion).c_str());
   if(io_pri==IO_TOTAL) {
     return;
   }
@@ -230,12 +244,14 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
 
   MutexLock g(&request_mutex_);
 
-  if(cushion==CUSHION_NORMAL && prev_write_stall_condition_!=ws_cur){
+  int pre_ws = prev_write_stall_condition_.load(std::memory_order_relaxed);
+
+  if(cushion==CUSHION_NORMAL && pre_ws != ws_cur){
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
-                   WSConditionString(prev_write_stall_condition_).c_str(), WSConditionString(ws_cur).c_str());
+                   WSConditionString(pre_ws).c_str(), WSConditionString(ws_cur).c_str());
     UpdatePrevWSCondition(ws_cur);
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
-                   WSConditionString(prev_write_stall_condition_).c_str(), WSConditionString(ws_cur).c_str());
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish UpdatePrevWSCondition to %s ", cfd->GetName().c_str(),
+                   WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }
 
   for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
@@ -255,7 +271,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     r.cv.Wait();
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
+                   WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }else if(io_pri == IO_HIGH){
     ++cur_high_;
     std::deque<Req*> queue;
@@ -277,15 +293,15 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       }
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
-      while(cur_high_>0 && !timeout_occurred){
+      while(cur_high_.load(std::memory_order_relaxed)>0 && !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_).c_str());
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
     }
 
     // When LOW thread is signaled, it should be removed from low_bkop_queue_ by itself
@@ -355,6 +371,22 @@ std::string InputRateController::WSConditionString(int ws) {
       break;
     default: res = "NA";
       break;
+  }
+  return res;
+}
+
+std::string InputRateController::CushionString(int cu) {
+  std::string res;
+  switch (cu) {
+    case CUSHION_NORMAL:
+      res = "CUSION_NORMAL"; break;
+    case CUSHION_L0:
+      res = "CUSION_L0"; break;
+    case CUSHION_DL:
+      res = "CUSION_DL"; break;
+    case CUSHION_DLL0:
+      res = "CUSHION_DLL0"; break;
+    default: res = "NA"; break;
   }
   return res;
 }

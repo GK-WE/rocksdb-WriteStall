@@ -503,12 +503,6 @@ IOStatus WritableFileWriter::RangeSync(uint64_t offset, uint64_t nbytes) {
 // limiter if available
 IOStatus WritableFileWriter::WriteBuffered(
     const char* data, size_t size, Env::IOPriority op_rate_limiter_priority) {
-  if(cfd_!= nullptr) {
-    ROCKS_LOG_INFO(
-        cfd_->ioptions()->logger, "[%s] WriteBuffered: backgroundop: %s",
-        cfd_->GetName().c_str(),
-        InputRateController::BackgroundOpString(background_op_).c_str());
-  }
   IOStatus s;
   assert(!use_direct_io());
   const char* src = data;

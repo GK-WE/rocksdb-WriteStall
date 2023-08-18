@@ -54,6 +54,8 @@ class InputRateController{
 
   static std::string WSConditionString(int ws);
 
+  static std::string CushionString(int cu);
+
  private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
