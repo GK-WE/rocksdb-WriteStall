@@ -48,6 +48,12 @@ class InputRateController{
 
   void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
+  static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
+
+  static std::string BackgroundOpString(Env::BackgroundOp op);
+
+  static std::string WSConditionString(int ws);
+
  private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
@@ -58,12 +64,6 @@ class InputRateController{
   static Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
-
-  static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
-
-  static std::string BackgroundOpString(Env::BackgroundOp op);
-
-  static std::string WSConditionString(int ws);
 
   void UpdatePrevWSCondition(int cur){
     prev_write_stall_condition_.store(cur);

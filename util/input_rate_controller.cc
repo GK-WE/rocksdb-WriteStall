@@ -181,6 +181,8 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int 
 }
 
 void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token) {
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str());
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   need_request_token = DecideBackgroundOpPriority(
