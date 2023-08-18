@@ -213,7 +213,7 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
 }
 
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %s", cfd->GetName().c_str(),
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   --cur_high_;
   MutexLock g(&request_mutex_);
@@ -229,7 +229,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(background_op,ws_cur,cushion);
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion when_reqissue: %s",
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
                  BackgroundOpPriorityString(io_pri).c_str(), bytes,
@@ -258,12 +258,16 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     if(i==stopped_op){
       continue;
     }
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start Signal-STOP: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
     std::deque<Req*> queue = stopped_bkop_queue_[i];
     while (!queue.empty()) {
       queue.front()->cv.Signal();
       queue.pop_front();
     }
   }
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-STOP: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
 
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
@@ -280,9 +284,13 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
         queue.push_back(r);
       }
     }
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start Signal-LOW: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
     for(auto&r : queue){
       r->cv.Signal();
     }
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-LOW: backgroundop: %s io_pri: %s ", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str());
   }else if(io_pri == IO_LOW){
     Req r(bytes, &request_mutex_, background_op);
     low_bkop_queue_.push_back(&r);
@@ -295,7 +303,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
                      WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
-      while(cur_high_.load(std::memory_order_relaxed)>0 && !timeout_occurred){
+      while(cur_high_.load(std::memory_order_relaxed)>0 || !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
@@ -353,21 +361,21 @@ std::string InputRateController::BackgroundOpString(Env::BackgroundOp op) {
 std::string InputRateController::WSConditionString(int ws) {
   std::string res;
   switch (ws) {
-    case WS_NORMAL: res = "NORMAL";
+    case WS_NORMAL: res = "WS_NORMAL";
       break;
-    case WS_MT: res = "MT";
+      case WS_MT: res = "WS_MT";
       break;
-      case WS_L0: res = "NORMAL";
+      case WS_L0: res = "WS_NORMAL";
       break;
-      case WS_DL: res = "DL";
+      case WS_DL: res = "WS_DL";
       break;
-      case WS_L0MT: res = "L0MT";
+      case WS_L0MT: res = "WS_L0MT";
       break;
-      case WS_DLMT: res = "DLMT";
+      case WS_DLMT: res = "WS_DLMT";
       break;
-      case WS_DLL0: res = "DLL0";
+      case WS_DLL0: res = "WS_DLL0";
       break;
-      case WS_DLL0MT: res = "DLL0MT";
+      case WS_DLL0MT: res = "WS_DLL0MT";
       break;
     default: res = "NA";
       break;
