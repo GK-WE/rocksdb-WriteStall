@@ -67,8 +67,8 @@ class InputRateController{
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
-  void UpdatePrevWSCondition(int cur){
-    prev_write_stall_condition_.store(cur);
+  void UpdatePrevWSCondition(int exp, int cur){
+      prev_write_stall_condition_.compare_exchange_strong(exp,cur);
   }
 
   std::shared_ptr<SystemClock> clock_;

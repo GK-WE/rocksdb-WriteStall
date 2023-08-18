@@ -249,7 +249,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(cushion==CUSHION_NORMAL && pre_ws != ws_cur){
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
                    WSConditionString(pre_ws).c_str(), WSConditionString(ws_cur).c_str());
-    UpdatePrevWSCondition(ws_cur);
+    UpdatePrevWSCondition(pre_ws,ws_cur);
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish UpdatePrevWSCondition to %s ", cfd->GetName().c_str(),
                    WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }
