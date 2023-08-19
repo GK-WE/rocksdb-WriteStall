@@ -318,7 +318,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
                      WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
-      while(cur_high_.load(std::memory_order_relaxed)>0 || !timeout_occurred){
+      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
