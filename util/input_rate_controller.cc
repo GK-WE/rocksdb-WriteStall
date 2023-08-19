@@ -259,17 +259,16 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     if(i==stopped_op){
       continue;
     }
-    std::deque<Req*> queue = stopped_bkop_queue_[i];
-    bool isqueue_empty = queue.empty();
+    bool isqueue_empty = stopped_bkop_queue_[i].empty();
     if(!isqueue_empty){
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
                      BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
-    while (!queue.empty()) {
-      queue.front()->cv.Signal();
-      queue.pop_front();
+    while (!stopped_bkop_queue_[i].empty()) {
+      stopped_bkop_queue_[i].front()->cv.Signal();
+      stopped_bkop_queue_[i].pop_front();
     }
     if(!isqueue_empty){
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
