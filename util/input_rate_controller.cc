@@ -10,6 +10,7 @@
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
 const int64_t low_dlcmp_max_wait_us = 400000; // 4/10 sec
+const int64_t stop_bkop_max_wait_us = 1000000; // 1 sec
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op)
   : request_bytes(_bytes), bytes(_bytes), cv(_mu), background_op(_background_op) {}
@@ -81,27 +82,30 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
 
   if( pre_ws == ws_cur || pre_ws == WS_NORMAL){
     return result;
-  }else if(prev_L0 && (!cur_L0)){
-    Version* current = cfd->current();
-    //if L0-CC was previously violated and now is not
-    // we should further check if it leaves room for flush
-    assert(current!=nullptr);
-    auto* vstorage = current->storage_info();
-    int l0_sst_num = vstorage->l0_delay_trigger_count();
-    int l0_sst_limit = mutable_cf_options.level0_stop_writes_trigger;
-    if(l0_sst_num > (int)((l0_sst_limit*3)/4)){
-      result += 1;
+  }else{
+    if(prev_L0 && (!cur_L0)){
+      Version* current = cfd->current();
+      //if L0-CC was previously violated and now is not
+      // we should further check if it leaves room for flush
+      assert(current!=nullptr);
+      auto* vstorage = current->storage_info();
+      int l0_sst_num = vstorage->l0_delay_trigger_count();
+      int l0_sst_limit = mutable_cf_options.level0_stop_writes_trigger;
+      if(l0_sst_num > (int)((l0_sst_limit*3)/4)){
+        result += 1;
+      }
     }
-  }else if(prev_DL && (!cur_DL)){
-    Version* current = cfd->current();
-    //if DL-CC was previously violated and now is not
-    // we should further check if it leaves room for L0-L1
-    assert(current!=nullptr);
-    auto* vstorage = current->storage_info();
-    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
-    uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
-    if(cmp_bytes_needed > (uint64_t)((cmp_bytes_limit*3)/4)){
-      result += 2;
+    if(prev_DL && (!cur_DL)){
+      Version* current = cfd->current();
+      //if DL-CC was previously violated and now is not
+      // we should further check if it leaves room for L0-L1
+      assert(current!=nullptr);
+      auto* vstorage = current->storage_info();
+      uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
+      uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
+      if(cmp_bytes_needed > (uint64_t)((cmp_bytes_limit*3)/4)){
+        result += 2;
+      }
     }
   }
   return result;
@@ -286,7 +290,11 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
-    r.cv.Wait();
+    bool timeout_occurred = false;
+    while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+      int64_t wait_until = clock_->NowMicros() + stop_bkop_max_wait_us;
+      timeout_occurred = r.cv.TimedWait(wait_until);
+    }
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
                    WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
