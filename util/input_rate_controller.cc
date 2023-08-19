@@ -291,7 +291,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
     bool timeout_occurred = false;
-    while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+    while(cur_high_.load(std::memory_order_relaxed)>0 && !timeout_occurred){
       int64_t wait_until = clock_->NowMicros() + stop_bkop_max_wait_us;
       timeout_occurred = r.cv.TimedWait(wait_until);
     }
@@ -325,7 +325,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     low_bkop_queue_.push_back(&r);
     if(background_op==Env::BK_DLCMP){
       bool timeout_occurred = false;
-      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+      while(cur_high_.load(std::memory_order_relaxed)>0 || !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_dlcmp_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
@@ -334,7 +334,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                      WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
       bool timeout_occurred = false;
-      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+      while(cur_high_.load(std::memory_order_relaxed)>0 || !timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
       }
