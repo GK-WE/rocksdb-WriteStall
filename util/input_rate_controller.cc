@@ -9,6 +9,7 @@
 
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
+const int64_t low_dlcmp_max_wait_us = 400000; // 4/10 sec
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op)
   : request_bytes(_bytes), bytes(_bytes), cv(_mu), background_op(_background_op) {}
@@ -297,27 +298,34 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
         queue.push_back(r);
       }
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-LOW-op:  ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str());
+    if(!queue.empty()){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-LOW-op", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str());
+    }
     for(auto&r : queue){
       r->cv.Signal();
     }
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-LOW-op:  ", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str());
+    if(!queue.empty()){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-LOW-op if any ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str());
+    }
+
   }else if(io_pri == IO_LOW){
     Req r(bytes, &request_mutex_, background_op);
     low_bkop_queue_.push_back(&r);
-    bool timeout_occurred = false;
     if(background_op==Env::BK_DLCMP){
-      while(cur_high_>0){
-        r.cv.Wait();
+      bool timeout_occurred = false;
+      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+        int64_t wait_until = clock_->NowMicros() + low_dlcmp_max_wait_us;
+        timeout_occurred = r.cv.TimedWait(wait_until);
       }
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
                      WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
+      bool timeout_occurred = false;
       while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
