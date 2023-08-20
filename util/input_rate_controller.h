@@ -14,6 +14,8 @@ class InputRateController{
 
   ~InputRateController();
 
+  struct Req;
+
   enum BackgroundOp_Priority {
     IO_STOP = 0,
     IO_LOW = 1,
@@ -56,6 +58,10 @@ class InputRateController{
 
   static std::string CushionString(int cu);
 
+  std::deque<Req*>* GetStoppedQueue(){return stopped_bkop_queue_;};
+
+  void SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri);
+
  private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
@@ -77,7 +83,6 @@ class InputRateController{
   mutable port::Mutex request_mutex_;
   port::CondVar exit_cv_;
   int32_t requests_to_wait_;
-  struct Req;
   std::deque<Req*> stopped_bkop_queue_[Env::BK_TOTAL];
   std::deque<Req*> low_bkop_queue_;
   bool stop_;

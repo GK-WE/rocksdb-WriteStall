@@ -22,8 +22,11 @@
 #include "test_util/sync_point.h"
 #include "util/cast_util.h"
 #include "util/concurrent_task_limiter_impl.h"
+#include "util/input_rate_controller.h"
 
 namespace ROCKSDB_NAMESPACE {
+
+class InputRateController;
 
 bool DBImpl::EnoughRoomForCompaction(
     ColumnFamilyData* cfd, const std::vector<CompactionInputFiles>& inputs,
@@ -3106,6 +3109,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   // InternalKey manual_end_storage;
   // InternalKey* manual_end = &manual_end_storage;
   bool sfm_reserved_compact_space = false;
+  ColumnFamilyData* cfd = nullptr;
   if (is_manual) {
     ManualCompactionState* m = manual_compaction;
     assert(m->in_progress);
@@ -3155,7 +3159,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       return Status::OK();
     }
 
-    auto cfd = PickCompactionFromQueue(&task_token, log_buffer);
+//    auto cfd = PickCompactionFromQueue(&task_token, log_buffer);
+    cfd = PickCompactionFromQueue(&task_token, log_buffer);
     if (cfd == nullptr) {
       // Can't find any executable task from the compaction queue.
       // All tasks have been throttled by compaction thread limiter.
@@ -3243,6 +3248,12 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   if (!c) {
     // Nothing to do
     ROCKS_LOG_BUFFER(log_buffer, "Compaction nothing to do");
+    DBOptions db_option = GetDBOptions();
+    auto* mutable_cf_options = cfd->GetLatestMutableCFOptions();
+    auto* vstorage = cfd->current()->storage_info();
+    if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
+      ROCKS_LOG_BUFFER(log_buffer, "However, WS-DL is tested");
+    }
   } else if (c->deletion_compaction()) {
     // TODO(icanadi) Do we want to honor snapshots here? i.e. not delete old
     // file if there is alive snapshot pointing to it
@@ -3472,8 +3483,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     if (c != nullptr && !is_manual && !error_handler_.IsBGWorkStopped()) {
       // Put this cfd back in the compaction queue so we can retry after some
       // time
-      auto cfd = c->column_family_data();
-      assert(cfd != nullptr);
+      auto cfd_ = c->column_family_data();
+      assert(cfd_ != nullptr);
       // Since this compaction failed, we need to recompute the score so it
       // takes the original input files into account
       c->column_family_data()
@@ -3481,8 +3492,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
           ->storage_info()
           ->ComputeCompactionScore(*(c->immutable_options()),
                                    *(c->mutable_cf_options()));
-      if (!cfd->queued_for_compaction()) {
-        AddToCompactionQueue(cfd);
+      if (!cfd_->queued_for_compaction()) {
+        AddToCompactionQueue(cfd_);
         ++unscheduled_compactions_;
       }
     }
