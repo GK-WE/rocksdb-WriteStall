@@ -3189,7 +3189,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // until we make a copy in the following code
       auto* vstorage = cfd->current()->storage_info();
       if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
-        ROCKS_LOG_BUFFER(log_buffer, "DL-CC violation!");
+        ROCKS_LOG_BUFFER(log_buffer, "DL-CC including L0CMP&DLCMP is violated!");
+        if(vstorage->estimated_compaction_needed_bytes_deeperlevel() < mutable_cf_options->hard_pending_compaction_bytes_limit){
+          ROCKS_LOG_BUFFER(log_buffer, "However DL-CC only including DLCMP is not violated!");
+        }
       }
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
       c.reset(cfd->PickCompaction(*mutable_cf_options, mutable_db_options_,
