@@ -237,11 +237,15 @@ void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp b
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   MutexLock g(&request_mutex_);
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken:GotMutex: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str());
   --cur_high_;
   if(cur_high_.load(std::memory_order_relaxed)==0 && !low_bkop_queue_.empty()){
     Req* r = low_bkop_queue_.front();
     r->cv.Signal();
   }
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken:ReleaseMutex: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str());
 }
 
 void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
@@ -262,14 +266,12 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(ws_cur,cushion);
 
   MutexLock g(&request_mutex_);
-  if(io_pri==IO_HIGH){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] GotMutex: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
-                   cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   WSConditionString(ws_cur).c_str(),
-                   CushionString(cushion).c_str());
-  }
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken:GotMutex: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                 cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                 WSConditionString(ws_cur).c_str(),
+                 CushionString(cushion).c_str());
 
   int pre_ws = prev_write_stall_condition_.load(std::memory_order_relaxed);
 
@@ -413,7 +415,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     --requests_to_wait_;
     exit_cv_.Signal();
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] GotToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken: GotToken & RealseMutex: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
                  BackgroundOpPriorityString(io_pri).c_str(), bytes,
