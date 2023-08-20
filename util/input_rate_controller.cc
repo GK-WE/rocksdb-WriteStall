@@ -81,7 +81,8 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
 
   if( pre_ws == ws_cur || pre_ws == WS_NORMAL){
     return result;
-  }else if(prev_L0 && (!cur_L0)){
+  }
+  if(prev_L0 && (!cur_L0)){
     Version* current = cfd->current();
     //if L0-CC was previously violated and now is not
     // we should further check if it leaves room for flush
@@ -92,10 +93,11 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     if(l0_sst_num > (int)((l0_sst_limit*3)/4)){
       result += 1;
     }
-  }else if(prev_DL && (!cur_DL)){
+  }
+  if(prev_DL && (!cur_DL)){
     Version* current = cfd->current();
     //if DL-CC was previously violated and now is not
-    // we should further check if it leaves room for L0-L1
+    // we should further check if it leaves room for L0-L1 cmp
     assert(current!=nullptr);
     auto* vstorage = current->storage_info();
     uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
@@ -317,22 +319,43 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     low_bkop_queue_.push_back(&r);
     if(background_op==Env::BK_DLCMP){
       bool timeout_occurred = false;
-      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+      do{
+        if(cur_high_.load(std::memory_order_relaxed)==0){
+          break;
+        }
         int64_t wait_until = clock_->NowMicros() + low_dlcmp_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
+      }while(!timeout_occurred);
+
+      if(timeout_occurred){
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+                       BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+      }else{
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                       BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
       }
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
       bool timeout_occurred = false;
-      while(cur_high_.load(std::memory_order_relaxed)>0 || timeout_occurred){
+      do{
+        if(cur_high_.load(std::memory_order_relaxed)==0){
+          break;
+        }
         int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
         timeout_occurred = r.cv.TimedWait(wait_until);
+      }while(!timeout_occurred);
+
+      if(timeout_occurred){
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+                       BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+      }else{
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                       BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
       }
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+
     }
 
     // When LOW thread is signaled, it should be removed from low_bkop_queue_ by itself
