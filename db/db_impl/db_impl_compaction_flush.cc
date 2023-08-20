@@ -3047,8 +3047,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
                                     Env::Priority thread_pri) {
   ManualCompactionState* manual_compaction =
       prepicked_compaction == nullptr
-          ? nullptr
-          : prepicked_compaction->manual_compaction_state;
+      ? nullptr
+      : prepicked_compaction->manual_compaction_state;
   *made_progress = false;
   mutex_.AssertHeld();
   TEST_SYNC_POINT("DBImpl::BackgroundCompaction:Start");
@@ -3056,7 +3056,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   bool is_manual = (manual_compaction != nullptr);
   std::unique_ptr<Compaction> c;
   if (prepicked_compaction != nullptr &&
-      prepicked_compaction->compaction != nullptr) {
+  prepicked_compaction->compaction != nullptr) {
     c.reset(prepicked_compaction->compaction);
   }
   bool is_prepicked = is_manual || c;
@@ -3071,7 +3071,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     if (shutting_down_.load(std::memory_order_acquire)) {
       status = Status::ShutdownInProgress();
     } else if (is_manual &&
-               manual_compaction->canceled.load(std::memory_order_acquire)) {
+    manual_compaction->canceled.load(std::memory_order_acquire)) {
       status = Status::Incomplete(Status::SubCode::kManualCompactionPaused);
     }
   } else {
@@ -3109,7 +3109,6 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   // InternalKey manual_end_storage;
   // InternalKey* manual_end = &manual_end_storage;
   bool sfm_reserved_compact_space = false;
-  ColumnFamilyData* cfd = nullptr;
   if (is_manual) {
     ManualCompactionState* m = manual_compaction;
     assert(m->in_progress);
@@ -3144,8 +3143,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
             (m->begin ? m->begin->DebugString(true).c_str() : "(begin)"),
             (m->end ? m->end->DebugString(true).c_str() : "(end)"),
             ((m->done || m->manual_end == nullptr)
-                 ? "(end)"
-                 : m->manual_end->DebugString(true).c_str()));
+            ? "(end)"
+            : m->manual_end->DebugString(true).c_str()));
       }
     }
   } else if (!is_prepicked && !compaction_queue_.empty()) {
@@ -3159,8 +3158,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       return Status::OK();
     }
 
-//    auto cfd = PickCompactionFromQueue(&task_token, log_buffer);
-    cfd = PickCompactionFromQueue(&task_token, log_buffer);
+    auto cfd = PickCompactionFromQueue(&task_token, log_buffer);
     if (cfd == nullptr) {
       // Can't find any executable task from the compaction queue.
       // All tasks have been throttled by compaction thread limiter.
@@ -3189,6 +3187,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // NOTE: try to avoid unnecessary copy of MutableCFOptions if
       // compaction is not necessary. Need to make sure mutex is held
       // until we make a copy in the following code
+      auto* vstorage = cfd->current()->storage_info();
+      if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
+        ROCKS_LOG_BUFFER(log_buffer, "DL-CC violation!");
+      }
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
       c.reset(cfd->PickCompaction(*mutable_cf_options, mutable_db_options_,
                                   log_buffer));
@@ -3202,10 +3204,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
           // Then don't do the compaction
           c->ReleaseCompactionFiles(status);
           c->column_family_data()
-              ->current()
-              ->storage_info()
-              ->ComputeCompactionScore(*(c->immutable_options()),
-                                       *(c->mutable_cf_options()));
+          ->current()
+          ->storage_info()
+          ->ComputeCompactionScore(*(c->immutable_options()),
+                                   *(c->mutable_cf_options()));
           AddToCompactionQueue(cfd);
           ++unscheduled_compactions_;
 
@@ -3248,12 +3250,6 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   if (!c) {
     // Nothing to do
     ROCKS_LOG_BUFFER(log_buffer, "Compaction nothing to do");
-    DBOptions db_option = GetDBOptions();
-    auto* mutable_cf_options = cfd->GetLatestMutableCFOptions();
-    auto* vstorage = cfd->current()->storage_info();
-    if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
-      ROCKS_LOG_BUFFER(log_buffer, "However, WS-DL is happening When Compaction nothing to do");
-    }
   } else if (c->deletion_compaction()) {
     // TODO(icanadi) Do we want to honor snapshots here? i.e. not delete old
     // file if there is alive snapshot pointing to it
@@ -3262,7 +3258,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     assert(c->num_input_files(1) == 0);
     assert(c->level() == 0);
     assert(c->column_family_data()->ioptions()->compaction_style ==
-           kCompactionStyleFIFO);
+    kCompactionStyleFIFO);
 
     compaction_job_stats.num_input_files = c->num_input_files(0);
 
@@ -3343,10 +3339,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
                                                              moved_bytes);
     {
       event_logger_.LogToBuffer(log_buffer)
-          << "job" << job_context->job_id << "event"
-          << "trivial_move"
-          << "destination_level" << c->output_level() << "files" << moved_files
-          << "total_files_size" << moved_bytes;
+      << "job" << job_context->job_id << "event"
+      << "trivial_move"
+      << "destination_level" << c->output_level() << "files" << moved_files
+      << "total_files_size" << moved_bytes;
     }
     ROCKS_LOG_BUFFER(
         log_buffer,
@@ -3361,13 +3357,13 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     TEST_SYNC_POINT_CALLBACK("DBImpl::BackgroundCompaction:AfterCompaction",
                              c->column_family_data());
   } else if (!is_prepicked && c->output_level() > 0 &&
-             c->output_level() ==
-                 c->column_family_data()
-                     ->current()
-                     ->storage_info()
-                     ->MaxOutputLevel(
-                         immutable_db_options_.allow_ingest_behind) &&
-             env_->GetBackgroundThreads(Env::Priority::BOTTOM) > 0) {
+  c->output_level() ==
+  c->column_family_data()
+  ->current()
+  ->storage_info()
+  ->MaxOutputLevel(
+      immutable_db_options_.allow_ingest_behind) &&
+      env_->GetBackgroundThreads(Env::Priority::BOTTOM) > 0) {
     // Forward compactions involving last level to the bottom pool if it exists,
     // such that compactions unlikely to contribute to write stalls can be
     // delayed or deprioritized.
@@ -3409,7 +3405,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         c->mutable_cf_options()->report_bg_io_stats, dbname_,
         &compaction_job_stats, thread_pri, io_tracer_,
         is_manual ? manual_compaction->canceled
-                  : kManualCompactionCanceledFalse_,
+        : kManualCompactionCanceledFalse_,
         db_id_, db_session_id_, c->column_family_data()->GetFullHistoryTsLow(),
         c->trim_ts(), &blob_callback_);
     compaction_job.Prepare();
@@ -3460,7 +3456,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   }
 
   if (status.ok() || status.IsCompactionTooLarge() ||
-      status.IsManualCompactionPaused()) {
+  status.IsManualCompactionPaused()) {
     // Done
   } else if (status.IsColumnFamilyDropped() || status.IsShutdownInProgress()) {
     // Ignore compaction errors found during shutting down
@@ -3474,8 +3470,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // be pessimistic and try write to a new MANIFEST.
       // TODO: distinguish between MANIFEST write and CURRENT renaming
       auto err_reason = versions_->io_status().ok()
-                            ? BackgroundErrorReason::kCompaction
-                            : BackgroundErrorReason::kManifestWrite;
+          ? BackgroundErrorReason::kCompaction
+          : BackgroundErrorReason::kManifestWrite;
       error_handler_.SetBGError(io_s, err_reason);
     } else {
       error_handler_.SetBGError(status, BackgroundErrorReason::kCompaction);
@@ -3483,17 +3479,17 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     if (c != nullptr && !is_manual && !error_handler_.IsBGWorkStopped()) {
       // Put this cfd back in the compaction queue so we can retry after some
       // time
-      auto cfd_ = c->column_family_data();
-      assert(cfd_ != nullptr);
+      auto cfd = c->column_family_data();
+      assert(cfd != nullptr);
       // Since this compaction failed, we need to recompute the score so it
       // takes the original input files into account
       c->column_family_data()
-          ->current()
-          ->storage_info()
-          ->ComputeCompactionScore(*(c->immutable_options()),
-                                   *(c->mutable_cf_options()));
-      if (!cfd_->queued_for_compaction()) {
-        AddToCompactionQueue(cfd_);
+      ->current()
+      ->storage_info()
+      ->ComputeCompactionScore(*(c->immutable_options()),
+                               *(c->mutable_cf_options()));
+      if (!cfd->queued_for_compaction()) {
+        AddToCompactionQueue(cfd);
         ++unscheduled_compactions_;
       }
     }
@@ -3528,8 +3524,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // to the range that is left to be compacted.
       // Universal and FIFO compactions should always compact the whole range
       assert(m->cfd->ioptions()->compaction_style !=
-                 kCompactionStyleUniversal ||
-             m->cfd->ioptions()->num_levels > 1);
+      kCompactionStyleUniversal ||
+      m->cfd->ioptions()->num_levels > 1);
       assert(m->cfd->ioptions()->compaction_style != kCompactionStyleFIFO);
       m->tmp_storage = *m->manual_end;
       m->begin = &m->tmp_storage;

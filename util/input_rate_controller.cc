@@ -415,21 +415,21 @@ std::string InputRateController::BackgroundOpString(Env::BackgroundOp op) {
 std::string InputRateController::WSConditionString(int ws) {
   std::string res;
   switch (ws) {
-    case WS_NORMAL: res = "WS_NORMAL";
+    case WS_NORMAL: res = "CC_NORMAL";
       break;
-      case WS_MT: res = "WS_MT";
+      case WS_MT: res = "CC_MT";
       break;
-      case WS_L0: res = "WS_L0";
+      case WS_L0: res = "CC_L0";
       break;
-      case WS_DL: res = "WS_DL";
+      case WS_DL: res = "CC_DL";
       break;
-      case WS_L0MT: res = "WS_L0MT";
+      case WS_L0MT: res = "CC_L0MT";
       break;
-      case WS_DLMT: res = "WS_DLMT";
+      case WS_DLMT: res = "CC_DLMT";
       break;
-      case WS_DLL0: res = "WS_DLL0";
+      case WS_DLL0: res = "CC_DLL0";
       break;
-      case WS_DLL0MT: res = "WS_DLL0MT";
+      case WS_DLL0MT: res = "CC_DLL0MT";
       break;
     default: res = "NA";
       break;
