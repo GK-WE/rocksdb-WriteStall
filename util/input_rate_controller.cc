@@ -209,8 +209,9 @@ void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,E
 
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s "
                                          "io_pri: %s ws_cur: %s cushion: %s "
-                                         "need_request_token: %s need_return_token %s"
-                 "compaction_nothing_todo_when_dlcc %s",
+                                         "need_request_token: %s "
+                 "need_return_token %s "
+                 "compaction_nothing_todo_when_dlcc %s ",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
                  BackgroundOpPriorityString(io_pri).c_str(),
@@ -277,18 +278,24 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
     bool timeout_occurred = false;
+    bool cur_DL = (ws_cur >> 2) & 1;
+    bool compaction_nothing_todo_when_dlcc = false;
     do{
       if(cur_high_.load(std::memory_order_relaxed)==0){
         break;
       }
+      compaction_nothing_todo_when_dlcc = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed);
+      if(compaction_nothing_todo_when_dlcc && cur_DL){
+        break;
+      }
       int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
       timeout_occurred = r.cv.TimedWait(wait_until);
-    }while(!timeout_occurred && !compaction_nothing_todo_when_dlcc_);
+    }while(!timeout_occurred);
 
-    if(timeout_occurred && compaction_nothing_todo_when_dlcc_){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+    if(compaction_nothing_todo_when_dlcc){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s ", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
     }else{
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
@@ -393,6 +400,9 @@ void InputRateController::SetCompactionNothingTodoFalse() {
 
 void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri) {
   request_mutex_.AssertHeld();
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP-op if any ", cfd->GetName().c_str(),
+                 BackgroundOpString(cur_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str());
   for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
     if(i==except_op){
       continue;
@@ -415,9 +425,9 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
                      BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
   }
-//  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
-//                 BackgroundOpString(cur_op).c_str(),
-//                 BackgroundOpPriorityString(io_pri).c_str());
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
+                 BackgroundOpString(cur_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str());
 }
 
 std::string InputRateController::BackgroundOpPriorityString(BackgroundOp_Priority io_pri) {
