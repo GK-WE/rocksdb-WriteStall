@@ -26,7 +26,8 @@ cur_high_(0),
 prev_write_stall_condition_(0),
 exit_cv_(&request_mutex_),
 requests_to_wait_(0),
-stop_(false){}
+stop_(false),
+compaction_nothing_todo_when_dlcc_(false){}
 
 InputRateController::~InputRateController() {
   MutexLock g(&request_mutex_);
@@ -122,9 +123,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
           break;
         case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW);
           break;
-        case CUSHION_DL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+        case CUSHION_DL: io_pri = (background_op == Env::BK_L0CMP) ?
+                                                    (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) :
+                                                    ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
           break;
-        case CUSHION_DLL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+        case CUSHION_DLL0: io_pri = (background_op == Env::BK_L0CMP) ?
+                                                    (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) :
+                                                    ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
           break;
         default: io_pri = IO_TOTAL;
           break;
@@ -136,11 +141,17 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case WS_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH) ? IO_STOP : IO_LOW);  //Flush stopped;
     break;
-    case WS_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op == Env::BK_L0CMP)?IO_STOP:IO_LOW); // L0-L1 compaction stopped;
+    case WS_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
+                                                ((background_op == Env::BK_L0CMP)?
+                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) : IO_LOW); // L0-L1 compaction stopped;
     break;
-    case WS_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op == Env::BK_L0CMP)?IO_STOP:IO_LOW); // L0-L1 compaction stopped;
+    case WS_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
+                                                ((background_op == Env::BK_L0CMP)?
+                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
     break;
-    case WS_DLL0: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: ((background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW); // Flush stopped;
+    case WS_DLL0: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
+                                                ((background_op==Env::BK_L0CMP)?
+                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_LOW):IO_STOP); // Flush stopped;
     break;
     case WS_DLL0MT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: IO_LOW;
     break;
@@ -160,9 +171,9 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int 
         break;
         case CUSHION_L0: stopped_op = Env::BK_FLUSH;
         break;
-        case CUSHION_DL: stopped_op = Env::BK_L0CMP;
+        case CUSHION_DL: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
         break;
-        case CUSHION_DLL0: stopped_op = Env::BK_L0CMP;
+        case CUSHION_DLL0: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
         break;
         default: stopped_op = Env::BK_TOTAL;
         break;
@@ -174,9 +185,9 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ws,int 
     break;
     case WS_L0MT: stopped_op = Env::BK_FLUSH;
     break;
-    case WS_DL: stopped_op = Env::BK_L0CMP;
+    case WS_DL: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
     break;
-    case WS_DLMT: stopped_op = Env::BK_L0CMP;
+    case WS_DLMT: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
     break;
     case WS_DLL0: stopped_op = Env::BK_FLUSH;
     break;
@@ -198,14 +209,16 @@ void InputRateController::DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd,E
 
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: backgroundop: %s "
                                          "io_pri: %s ws_cur: %s cushion: %s "
-                                         "need_request_token: %s need_return_token %s",
+                                         "need_request_token: %s need_return_token %s"
+                 "compaction_nothing_todo_when_dlcc %s",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
                  BackgroundOpPriorityString(io_pri).c_str(),
                  WSConditionString(ws_cur).c_str(),
                  CushionString(cushion).c_str(),
                  need_request_token?"true":"false",
-                 need_return_token?"true":"false");
+                 need_return_token?"true":"false",
+                 compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?"true":"false");
 }
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
@@ -222,8 +235,8 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
-  --cur_high_;
   MutexLock g(&request_mutex_);
+  --cur_high_;
   if(cur_high_.load(std::memory_order_relaxed)==0 && !low_bkop_queue_.empty()){
     Req* r = low_bkop_queue_.front();
     r->cv.Signal();
@@ -263,10 +276,25 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
-    r.cv.Wait();
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+    bool timeout_occurred = false;
+    do{
+      if(cur_high_.load(std::memory_order_relaxed)==0){
+        break;
+      }
+      int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
+      timeout_occurred = r.cv.TimedWait(wait_until);
+    }while(!timeout_occurred && !compaction_nothing_todo_when_dlcc_);
+
+    if(timeout_occurred && compaction_nothing_todo_when_dlcc_){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+    }else{
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+    }
+
   }else if(io_pri == IO_HIGH){
     ++cur_high_;
     std::deque<Req*> queue;
@@ -349,6 +377,18 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                  WSConditionString(ws_cur).c_str(),
                  CushionString(cushion).c_str());
 
+}
+
+void InputRateController::SetCompactionNothingTodoTrue() {
+  MutexLock g(&request_mutex_);
+  compaction_nothing_todo_when_dlcc_.store(true);
+}
+
+void InputRateController::SetCompactionNothingTodoFalse() {
+  if(compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)){
+    MutexLock g(&request_mutex_);
+    compaction_nothing_todo_when_dlcc_.store(false);
+  }
 }
 
 void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri) {

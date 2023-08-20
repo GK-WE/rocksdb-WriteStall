@@ -62,14 +62,18 @@ class InputRateController{
 
   void SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri);
 
+  void SetCompactionNothingTodoTrue();
+
+  void SetCompactionNothingTodoFalse();
+
  private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
   int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 
-  static BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);
+  BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);
 
-  static Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
+  Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
@@ -86,6 +90,7 @@ class InputRateController{
   std::deque<Req*> stopped_bkop_queue_[Env::BK_TOTAL];
   std::deque<Req*> low_bkop_queue_;
   bool stop_;
+  std::atomic<bool> compaction_nothing_todo_when_dlcc_;
 
 };
 extern InputRateController* NewInputRateController();

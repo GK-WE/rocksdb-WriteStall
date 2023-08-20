@@ -3068,6 +3068,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
 
   CompactionJobStats compaction_job_stats;
   Status status;
+  bool dlcc = false;
   if (!error_handler_.IsBGWorkStopped()) {
     if (shutting_down_.load(std::memory_order_acquire)) {
       status = Status::ShutdownInProgress();
@@ -3193,6 +3194,8 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         ROCKS_LOG_BUFFER(log_buffer, "DL-CC including L0CMP&DLCMP is violated!");
         if(vstorage->estimated_compaction_needed_bytes_deeperlevel() < mutable_cf_options->hard_pending_compaction_bytes_limit){
           ROCKS_LOG_BUFFER(log_buffer, "However DL-CC only including DLCMP is not violated!");
+        }else{
+          dlcc = true;
         }
       }
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
@@ -3245,6 +3248,16 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
             ++unscheduled_compactions_;
             MaybeScheduleFlushOrCompaction();
           }
+        }
+      }
+
+      if(!c && dlcc){
+        if(cfd->ioptions()->input_rate_controller!=nullptr){
+          cfd->ioptions()->input_rate_controller->SetCompactionNothingTodoTrue();
+        }
+      }else{
+        if(cfd->ioptions()->input_rate_controller!=nullptr){
+          cfd->ioptions()->input_rate_controller->SetCompactionNothingTodoFalse();
         }
       }
     }
