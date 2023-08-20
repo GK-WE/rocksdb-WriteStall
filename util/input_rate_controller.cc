@@ -218,7 +218,7 @@ size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
 }
 
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::ReturnToken: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken: backgroundop: %s io_pri: HIGH", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   --cur_high_;
   MutexLock g(&request_mutex_);
@@ -234,7 +234,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   int ws_cur = DecideCurWriteStallCondition(cfd,mutable_cf_options);
   int cushion = DecideWriteStallChange(cfd,mutable_cf_options,ws_cur);
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(background_op,ws_cur,cushion);
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] InputRateController::RequestToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
                  cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str(),
                  BackgroundOpPriorityString(io_pri).c_str(), bytes,
@@ -340,6 +340,12 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     --requests_to_wait_;
     exit_cv_.Signal();
   }
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] GotToken: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                 cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                 WSConditionString(ws_cur).c_str(),
+                 CushionString(cushion).c_str());
 
 }
 
@@ -367,9 +373,9 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
                      BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
-                 BackgroundOpString(cur_op).c_str(),
-                 BackgroundOpPriorityString(io_pri).c_str());
+//  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
+//                 BackgroundOpString(cur_op).c_str(),
+//                 BackgroundOpPriorityString(io_pri).c_str());
 }
 
 std::string InputRateController::BackgroundOpPriorityString(BackgroundOp_Priority io_pri) {
