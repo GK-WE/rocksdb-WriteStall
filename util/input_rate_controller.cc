@@ -262,7 +262,25 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(ws_cur,cushion);
 
   MutexLock g(&request_mutex_);
+  if(io_pri==IO_HIGH){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] GotMutex: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                   cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   WSConditionString(ws_cur).c_str(),
+                   CushionString(cushion).c_str());
+  }
+
   int pre_ws = prev_write_stall_condition_.load(std::memory_order_relaxed);
+
+  if(io_pri==IO_HIGH){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Entering Check UpdatePrevWSCondition: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                   cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   WSConditionString(ws_cur).c_str(),
+                   CushionString(cushion).c_str());
+  }
 
   if(cushion==CUSHION_NORMAL && pre_ws != ws_cur){
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start UpdatePrevWSCondition from %s to %s ", cfd->GetName().c_str(),
@@ -272,7 +290,25 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                    WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }
 
+  if(io_pri==IO_HIGH){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Check UpdatePrevWSCondition & Start Signal-STOP-op if any: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                   cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   WSConditionString(ws_cur).c_str(),
+                   CushionString(cushion).c_str());
+  }
+
   SignalStopOpExcept(cfd,stopped_op,background_op,io_pri);
+
+  if(io_pri==IO_HIGH){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-STOP-op if any: backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s cushion_when_reqissue: %s",
+                   cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),
+                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   WSConditionString(ws_cur).c_str(),
+                   CushionString(cushion).c_str());
+  }
 
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
