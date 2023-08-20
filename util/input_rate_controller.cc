@@ -243,12 +243,9 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(io_pri==IO_TOTAL) {
     return;
   }
-
   Env::BackgroundOp stopped_op = DecideStoppedBackgroundOp(ws_cur,cushion);
 
-
   MutexLock g(&request_mutex_);
-
   int pre_ws = prev_write_stall_condition_.load(std::memory_order_relaxed);
 
   if(cushion==CUSHION_NORMAL && pre_ws != ws_cur){

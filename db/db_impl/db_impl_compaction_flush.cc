@@ -3252,7 +3252,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     auto* mutable_cf_options = cfd->GetLatestMutableCFOptions();
     auto* vstorage = cfd->current()->storage_info();
     if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
-      ROCKS_LOG_BUFFER(log_buffer, "However, WS-DL is tested");
+      ROCKS_LOG_BUFFER(log_buffer, "However, WS-DL is happening When Compaction nothing to do");
     }
   } else if (c->deletion_compaction()) {
     // TODO(icanadi) Do we want to honor snapshots here? i.e. not delete old
