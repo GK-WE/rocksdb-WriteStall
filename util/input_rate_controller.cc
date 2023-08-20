@@ -10,7 +10,7 @@
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
 const int64_t low_dlcmp_max_wait_us = 400000; // 4/10 sec
-const int64_t stop_bkop_max_wait_us = 1000000; // 1 sec
+//const int64_t stop_bkop_max_wait_us = 1000000; // 1 sec
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op)
   : request_bytes(_bytes), bytes(_bytes), cv(_mu), background_op(_background_op) {}
@@ -260,41 +260,13 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                    WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }
 
-  for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
-    if(i==stopped_op){
-      continue;
-    }
-    bool isqueue_empty = stopped_bkop_queue_[i].empty();
-    if(!isqueue_empty){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(),
-                     BackgroundOpPriorityString(io_pri).c_str(),
-                     BackgroundOpString((Env::BackgroundOp)i).c_str());
-    }
-    while (!stopped_bkop_queue_[i].empty()) {
-      stopped_bkop_queue_[i].front()->cv.Signal();
-      stopped_bkop_queue_[i].pop_front();
-    }
-    if(!isqueue_empty){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
-                     BackgroundOpString(background_op).c_str(),
-                     BackgroundOpPriorityString(io_pri).c_str(),
-                     BackgroundOpString((Env::BackgroundOp)i).c_str());
-    }
-  }
-
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
-                 BackgroundOpString(background_op).c_str(),
-                 BackgroundOpPriorityString(io_pri).c_str());
+  SignalStopOpExcept(cfd,stopped_op,background_op,io_pri);
 
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
     bool timeout_occurred = false;
-    while(cur_high_.load(std::memory_order_relaxed)>0 && !timeout_occurred){
-      int64_t wait_until = clock_->NowMicros() + stop_bkop_max_wait_us;
-      timeout_occurred = r.cv.TimedWait(wait_until);
-    }
+    r.cv.Wait();
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
                    WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
@@ -353,6 +325,35 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     exit_cv_.Signal();
   }
 
+}
+
+void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri) {
+  request_mutex_.AssertHeld();
+  for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
+    if(i==except_op){
+      continue;
+    }
+    bool isqueue_empty = stopped_bkop_queue_[i].empty();
+    if(!isqueue_empty){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString(cur_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str());
+    }
+    while (!stopped_bkop_queue_[i].empty()) {
+      stopped_bkop_queue_[i].front()->cv.Signal();
+      stopped_bkop_queue_[i].pop_front();
+    }
+    if(!isqueue_empty){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString(cur_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str());
+    }
+  }
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op if any ", cfd->GetName().c_str(),
+                 BackgroundOpString(cur_op).c_str(),
+                 BackgroundOpPriorityString(io_pri).c_str());
 }
 
 std::string InputRateController::BackgroundOpPriorityString(BackgroundOp_Priority io_pri) {
