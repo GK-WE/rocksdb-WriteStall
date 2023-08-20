@@ -265,7 +265,6 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op);
     stopped_bkop_queue_[stopped_op].push_back(&r);
-    bool timeout_occurred = false;
     r.cv.Wait();
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
