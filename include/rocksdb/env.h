@@ -460,7 +460,8 @@ class Env : public Customizable {
     BK_FLUSH = 0,
     BK_L0CMP = 1,
     BK_DLCMP = 2,
-    BK_TOTAL = 3
+    BK_TOTAL = 3,
+    BK_NONE
   };
 
   // Arrange to run "(*function)(arg)" once in a background thread, in

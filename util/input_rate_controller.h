@@ -48,7 +48,7 @@ class InputRateController{
     TSREASON_TIMEOUT = 1,
     TSREASON_NOCMP_DLCC = 2,
     TSREASON_ZERO_HIGH = 3,
-    TSREASON_TOTAL
+    TSREASON_TOTAL = 4
   };
 
   void DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token);
@@ -91,6 +91,7 @@ class InputRateController{
 
   void SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri);
 
+  void SignalLowOpShouldBeHighOpNow(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
   std::shared_ptr<SystemClock> clock_;
   std::atomic<int> cur_high_;
