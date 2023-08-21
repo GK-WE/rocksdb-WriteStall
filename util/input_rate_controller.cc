@@ -331,13 +331,13 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     }while(!timeout_occurred);
 
     if(compaction_nothing_todo_when_dlcc){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s ", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s req: %p ", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),&r);
     }else{
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] WSChange-Signaled-STOP backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s req: %p ", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+                     WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),&r);
     }
 
   }else if(io_pri == IO_HIGH){
@@ -354,6 +354,9 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                      BackgroundOpPriorityString(io_pri).c_str());
     }
     for(auto&r : queue){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-LOW-op req: %p ", cfd->GetName().c_str(),
+                     BackgroundOpString(background_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),&r);
       r->cv.Signal();
     }
     if(!queue.empty()){
@@ -376,13 +379,15 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       }while(!timeout_occurred);
 
       if(timeout_occurred){
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d req: %p ", cfd->GetName().c_str(),
                        BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
+                       cur_high_.load(std::memory_order_relaxed),&r);
       }else{
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d req: %p ", cfd->GetName().c_str(),
                        BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
+                       cur_high_.load(std::memory_order_relaxed), &r);
       }
     }else{
       bool timeout_occurred = false;
@@ -395,13 +400,15 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
       }while(!timeout_occurred);
 
       if(timeout_occurred){
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] TIMEOUT-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d req: %p ", cfd->GetName().c_str(),
                        BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(), cur_high_.load(std::memory_order_relaxed));
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
+                       cur_high_.load(std::memory_order_relaxed),&r);
       }else{
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NO-HIGH-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ws_when_reqissue: %s ws_cur: %s cur_high: %d req: %p ", cfd->GetName().c_str(),
                        BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
+                       WSConditionString(ws_cur).c_str(), WSConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
+                       cur_high_.load(std::memory_order_relaxed),&r);
       }
 
     }
