@@ -427,21 +427,22 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
       if((r->blocked_reason >> 2) & 1){
         queue.push_back(r);
       }
-      bool isqueue_empty = queue.empty();
-      int sum = queue.size();
-      if(!isqueue_empty){
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
-                       BackgroundOpString((Env::BackgroundOp)i).c_str());
-      }
-      while(!queue.empty()){
-        queue.front()->signaled_reason = TSREASON_NOCMP_DLCC;
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Signal-STOP-op: %s sum: %d count %d req: %p signalreason: TSREASON_NOCMP_DLCC", cfd->GetName().c_str(),
-                       BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
-        queue.front()->cv.Signal();
-        queue.pop_front();
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Popout-STOP-op: %s sum: %d count %d req: %p", cfd->GetName().c_str(),
-                       BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
-      }
+    }
+    bool isqueue_empty = queue.empty();
+    int sum = queue.size();
+    if(!isqueue_empty){
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Start Signal-STOP-op: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str());
+    }
+    while(!queue.empty()){
+      auto r = queue.front();
+      queue.front()->signaled_reason = TSREASON_NOCMP_DLCC;
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Signal-STOP-op: %s sum: %d count %d req: %p signalreason: TSREASON_NOCMP_DLCC", cfd->GetName().c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,r);
+      queue.front()->cv.Signal();
+      queue.pop_front();
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Popout-STOP-op: %s sum: %d count %d req: %p", cfd->GetName().c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,r);
     }
   }
 }
@@ -466,22 +467,22 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
     int cnt = 0;
     while (!stopped_bkop_queue_[i].empty()) {
       cnt++;
-      auto r = *(stopped_bkop_queue_[i].front());
+      auto r = stopped_bkop_queue_[i].front();
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-STOP-op: %s sum: %d count %d req %p signalreason: TSREASON_CCV_CHANGE", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
-                     BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,r);
       stopped_bkop_queue_[i].front()->signaled_reason = TSREASON_CCV_CHANGE;
       stopped_bkop_queue_[i].front()->cv.Signal();
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Popout-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
-                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,&r);
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,r);
       stopped_bkop_queue_[i].pop_front();
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Popout-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
-                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,&r);
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,r);
     }
     if(!isqueue_empty){
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
