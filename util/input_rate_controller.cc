@@ -518,26 +518,36 @@ void InputRateController::SignalLowOpShouldBeHighOpNow(ColumnFamilyData* cfd, En
     }
   }
   int sum = queue.size();
-  for(auto&r : queue){
+  int cnt = 0;
+  for(auto& r : queue){
+    cnt++;
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-StartSignal-LOWop: "
                                            "background_op: %s "
                                            "io_pri: HIGH "
+                                           "sum: %d "
+                                           "count %d "
                                            "req: %p "
                                            "signal_reason: TSREASON_CCV_CHANGE "
                                            "signaled_op: %s", cfd->GetName().c_str(),
                                            BackgroundOpString(background_op).c_str(),
-                                           &r,
+                                           sum,
+                                           cnt,
+                                           r,
                                            BackgroundOpString(r->background_op).c_str());
     r->signaled_reason = TSREASON_CCV_CHANGE;
     r->cv.Signal();
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-LOWop: "
                                            "background_op: %s "
                                            "io_pri: HIGH "
+                                           "sum: %d "
+                                           "count %d "
                                            "req: %p "
                                            "signal_reason: TSREASON_CCV_CHANGE "
                                            "signaled_op: %s", cfd->GetName().c_str(),
                                            BackgroundOpString(background_op).c_str(),
-                                           &r,
+                                           sum,
+                                           cnt,
+                                           r,
                                            BackgroundOpString(r->background_op).c_str());
   }
 }
@@ -602,10 +612,14 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
       stopped_bkop_queue_[i].front()->signaled_reason = TSREASON_CCV_CHANGE;
 
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-StartSignal-STOPop:"
+                                             "background_op: %s "
+                                             "io_pri: %s "
                                              "sum: %d "
                                              "count %d "
                                              "req: %p signal_reason: TSREASON_CCV_CHANGE"
                                              "signaled_op: %s ", cfd->GetName().c_str(),
+                     BackgroundOpString(cur_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
                                              sum,
                                              cnt,
                                              r,
@@ -615,10 +629,14 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
       stopped_bkop_queue_[i].pop_front();
 
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-STOPop:"
+                                             "background_op: %s "
+                                             "io_pri: %s "
                                              "sum: %d "
                                              "count %d "
                                              "req: %p signal_reason: TSREASON_CCV_CHANGE"
                                              "signaled_op: %s ", cfd->GetName().c_str(),
+                                             BackgroundOpString(cur_op).c_str(),
+                                             BackgroundOpPriorityString(io_pri).c_str(),
                                              sum,
                                              cnt,
                                              r,
