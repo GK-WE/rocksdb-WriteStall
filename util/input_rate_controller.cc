@@ -452,7 +452,13 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
                      BackgroundOpPriorityString(io_pri).c_str(),
                      BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
+    int cnt = 0;
     while (!stopped_bkop_queue_[i].empty()) {
+      cnt++;
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
+                     BackgroundOpString(cur_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,&stopped_bkop_queue_[i].front());
       stopped_bkop_queue_[i].front()->cv.Signal();
       stopped_bkop_queue_[i].pop_front();
     }
