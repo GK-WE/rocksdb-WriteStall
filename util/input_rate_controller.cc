@@ -319,11 +319,8 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
     bool cur_DL = (ws_cur >> 2) & 1;
     bool compaction_nothing_todo_when_dlcc = false;
     do{
-      if(cur_high_.load(std::memory_order_relaxed)==0){
-        break;
-      }
       compaction_nothing_todo_when_dlcc = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed);
-      if(compaction_nothing_todo_when_dlcc && cur_DL){
+      if(cur_high_.load(std::memory_order_relaxed)==0 && compaction_nothing_todo_when_dlcc){
         break;
       }
       int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
