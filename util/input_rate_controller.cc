@@ -250,6 +250,8 @@ void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp b
   --cur_high_;
   if(cur_high_.load(std::memory_order_relaxed)==0 && !low_bkop_queue_.empty()){
     Req* r = low_bkop_queue_.front();
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: HIGH Signal-LOW-op req: %p signalreason: TSREASON_ZERO_HIGH", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(),&r);
     r->signaled_reason = TSREASON_ZERO_HIGH;
     r->cv.Signal();
   }
@@ -284,15 +286,6 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
 
   int pre_ccv = prev_write_stall_condition_.load(std::memory_order_relaxed);
 
-  if(io_pri==IO_HIGH){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Entering Check UpdatePrevCCVCondition: backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s cushion_when_reqissue: %s",
-                   cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   CCVConditionString(ccv_cur).c_str(),
-                   CushionString(cushion).c_str());
-  }
-
   if(cushion==CUSHION_NORMAL && pre_ccv != ccv_cur){
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Start UpdatePrevCCVCondition from %s to %s ", cfd->GetName().c_str(),
                    CCVConditionString(pre_ccv).c_str(), CCVConditionString(ccv_cur).c_str());
@@ -301,29 +294,14 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                    CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str());
   }
 
-  if(io_pri==IO_HIGH){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Check UpdatePrevCCVCondition & Start Signal-STOP-op if any: backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s cushion_when_reqissue: %s",
-                   cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   CCVConditionString(ccv_cur).c_str(),
-                   CushionString(cushion).c_str());
-  }
-
   SignalStopOpExcept(cfd,stopped_op,background_op,io_pri);
-
-  if(io_pri==IO_HIGH){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] Finish Signal-STOP-op if any: backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s cushion_when_reqissue: %s",
-                   cfd->GetName().c_str(),
-                   BackgroundOpString(background_op).c_str(),
-                   BackgroundOpPriorityString(io_pri).c_str(), bytes,
-                   CCVConditionString(ccv_cur).c_str(),
-                   CushionString(cushion).c_str());
-  }
 
   if(background_op == stopped_op){
     Req r(bytes, &request_mutex_, background_op,ccv_cur, TSREASON_TOTAL);
     stopped_bkop_queue_[stopped_op].push_back(&r);
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s ccv_cur: %s req: %p", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   CCVConditionString(ccv_cur).c_str(), CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),&r);
     r.cv.Wait();
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] CMP-NOTODO-Signaled-LOW backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s ccv_cur: %s req: %p signalreason: %s", cfd->GetName().c_str(),
                    BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
@@ -347,7 +325,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                      BackgroundOpPriorityString(io_pri).c_str());
     }
     for(auto&r : queue){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-LOW-op req: %p ", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-LOW-op req: %p signalreason: TSREASON_CCV_CHANGE", cfd->GetName().c_str(),
                      BackgroundOpString(background_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),&r);
       r->signaled_reason = TSREASON_CCV_CHANGE;
@@ -362,6 +340,9 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
   }else if(io_pri == IO_LOW){
     Req r(bytes, &request_mutex_, background_op,ccv_cur,TSREASON_TOTAL);
     low_bkop_queue_.push_back(&r);
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s bytes: %zu ccv_when_reqissue: %s ccv_cur: %s req: %p", cfd->GetName().c_str(),
+                   BackgroundOpString(background_op).c_str(), BackgroundOpPriorityString(io_pri).c_str(), bytes,
+                   CCVConditionString(ccv_cur).c_str(), CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),&r);
     if(background_op==Env::BK_DLCMP){
       bool timeout_occurred = false;
       do{
@@ -454,11 +435,11 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
       }
       while(!queue.empty()){
         queue.front()->signaled_reason = TSREASON_NOCMP_DLCC;
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Signal-STOP-op: %s sum: %d count %d req %p", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Signal-STOP-op: %s sum: %d count %d req: %p signalreason: TSREASON_NOCMP_DLCC", cfd->GetName().c_str(),
                        BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
         queue.front()->cv.Signal();
         queue.pop_front();
-        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Popout-STOP-op: %s sum: %d count %d req %p", cfd->GetName().c_str(),
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] NoCmpButDLCC Popout-STOP-op: %s sum: %d count %d req: %p", cfd->GetName().c_str(),
                        BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
       }
     }
@@ -486,17 +467,21 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
     while (!stopped_bkop_queue_[i].empty()) {
       cnt++;
       auto r = *(stopped_bkop_queue_[i].front());
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-STOP-op: %s sum: %d count %d req %p", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Signal-STOP-op: %s sum: %d count %d req %p signalreason: TSREASON_CCV_CHANGE", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
                      BackgroundOpString((Env::BackgroundOp)i).c_str(),sum,cnt,&r);
       stopped_bkop_queue_[i].front()->signaled_reason = TSREASON_CCV_CHANGE;
       stopped_bkop_queue_[i].front()->cv.Signal();
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Popout-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Start Popout-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
                      BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,&r);
       stopped_bkop_queue_[i].pop_front();
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Popout-STOP-op: %s count %d req %p", cfd->GetName().c_str(),
+                     BackgroundOpString(cur_op).c_str(),
+                     BackgroundOpPriorityString(io_pri).c_str(),
+                     BackgroundOpString((Env::BackgroundOp)i).c_str(),cnt,&r);
     }
     if(!isqueue_empty){
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] backgroundop: %s io_pri: %s Finish Signal-STOP-op: %s ", cfd->GetName().c_str(),
