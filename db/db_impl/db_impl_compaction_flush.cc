@@ -3251,17 +3251,11 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         }
       }
 
-      if(!c && dlcc){
-        if(cfd->ioptions()->input_rate_controller!=nullptr){
-          ROCKS_LOG_BUFFER(log_buffer, "Start GetMutex in InputRateController");
-          cfd->ioptions()->input_rate_controller->SetCompactionNothingTodoTrue();
-          ROCKS_LOG_BUFFER(log_buffer, "ReleaseMutex in InputRateController");
-        }
-      }else{
-        if(cfd->ioptions()->input_rate_controller!=nullptr){
-          ROCKS_LOG_BUFFER(log_buffer, "Start GetMutex in InputRateController");
-          cfd->ioptions()->input_rate_controller->SetCompactionNothingTodoFalse();
-          ROCKS_LOG_BUFFER(log_buffer, "ReleaseMutex in InputRateController");
+      if(cfd != nullptr && cfd->ioptions()->input_rate_controller!=nullptr){
+        if(!c && dlcc){
+          cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
+        }else if(cfd->ioptions()->input_rate_controller->GetCmpNoWhenDLCC()){
+          cfd->ioptions()->input_rate_controller->SetCmpNoWhenDLCC(false);
         }
       }
     }

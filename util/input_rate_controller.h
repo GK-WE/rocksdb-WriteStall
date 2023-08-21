@@ -24,23 +24,31 @@ class InputRateController{
   };
 
   // bitwise 000 --> (DL,L0,MT)
-  enum WriteStall_Condition{
-    WS_NORMAL = 0,   // 000
-    WS_MT = 1,       // 001
-    WS_L0 = 2,       // 010
-    WS_L0MT = 3,     // 011
-    WS_DL = 4,       // 100
-    WS_DLMT = 5,     // 101
-    WS_DLL0 = 6,     // 110
-    WS_DLL0MT = 7,    // 111
+  enum ComponentConstraint_Condition{
+    CCV_NORMAL = 0,   // 000
+    CCV_MT = 1,       // 001
+    CCV_L0 = 2,       // 010
+    CCV_L0MT = 3,     // 011
+    CCV_DL = 4,       // 100
+    CCV_DLMT = 5,     // 101
+    CCV_DLL0 = 6,     // 110
+    CCV_DLL0MT = 7,    // 111
   };
 
-  enum WriteStall_Cushion{
+  enum ComponentConstraintViolation_Cushion{
     CUSHION_NORMAL = 0,
-    CUSHION_L0 = 1, // prev state include WS_L0, but now L0 is not decreased to a safty value
-    CUSHION_DL = 2, //pre state include WS_DL, but now DL is not decreased to a safy value
+    CUSHION_L0 = 1, // prev state include CCV_L0, but now L0 is not decreased to a safty value
+    CUSHION_DL = 2, //pre state include CCV_DL, but now DL is not decreased to a safy value
     CUSHION_DLL0 = 3, // both L0 and DL
     CUSHION_TOTAL
+  };
+
+  enum ThreadSignaledReason{
+    TSREASON_CCV_CHANGE = 0,
+    TSREASON_TIMEOUT = 1,
+    TSREASON_NOCMP_DLCC = 2,
+    TSREASON_ZERO_HIGH = 3,
+    TSREASON_TOTAL
   };
 
   void DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token);
@@ -50,21 +58,11 @@ class InputRateController{
 
   void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
-  static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
+  void SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd);
 
-  static std::string BackgroundOpString(Env::BackgroundOp op);
+  void SetCmpNoWhenDLCC(bool nocmp);
 
-  static std::string WSConditionString(int ws);
-
-  static std::string CushionString(int cu);
-
-  std::deque<Req*>* GetStoppedQueue(){return stopped_bkop_queue_;};
-
-  void SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri);
-
-  void SetCompactionNothingTodoTrue();
-
-  void SetCompactionNothingTodoFalse();
+  bool GetCmpNoWhenDLCC(){return compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed);};
 
  private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
@@ -77,9 +75,22 @@ class InputRateController{
 
   void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
 
-  void UpdatePrevWSCondition(int exp, int cur){
+  void UpdatePrevCCVCondition(int exp, int cur){
       prev_write_stall_condition_.compare_exchange_strong(exp,cur);
   }
+
+  static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
+
+  static std::string BackgroundOpString(Env::BackgroundOp op);
+
+  static std::string CCVConditionString(int ws);
+
+  static std::string CushionString(int cu);
+
+  static std::string TSReasonString(int ts);
+
+  void SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri);
+
 
   std::shared_ptr<SystemClock> clock_;
   std::atomic<int> cur_high_;

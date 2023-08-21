@@ -608,13 +608,6 @@ IOStatus WritableFileWriter::WriteBuffered(
 
 IOStatus WritableFileWriter::WriteBufferedWithChecksum(
     const char* data, size_t size, Env::IOPriority op_rate_limiter_priority) {
-  if(cfd_!= nullptr) {
-    ROCKS_LOG_INFO(
-        cfd_->ioptions()->logger,
-        "[%s] WriteBufferedWithChecksum: backgroundop: %s",
-        cfd_->GetName().c_str(),
-        InputRateController::BackgroundOpString(background_op_).c_str());
-  }
   IOStatus s;
   assert(!use_direct_io());
   assert(perform_data_verification_ && buffered_data_with_checksum_);
@@ -749,12 +742,6 @@ void WritableFileWriter::Crc32cHandoffChecksumCalculation(const char* data,
 #ifndef ROCKSDB_LITE
 IOStatus WritableFileWriter::WriteDirect(
     Env::IOPriority op_rate_limiter_priority) {
-  if(cfd_!= nullptr) {
-    ROCKS_LOG_INFO(
-        cfd_->ioptions()->logger, "[%s] WriteDirect: backgroundop: %s",
-        cfd_->GetName().c_str(),
-        InputRateController::BackgroundOpString(background_op_).c_str());
-  }
   assert(use_direct_io());
   IOStatus s;
   const size_t alignment = buf_.Alignment();
@@ -863,10 +850,6 @@ IOStatus WritableFileWriter::WriteDirect(
 IOStatus WritableFileWriter::WriteDirectWithChecksum(
     Env::IOPriority op_rate_limiter_priority) {
   assert(use_direct_io());
-  if(cfd_!= nullptr){
-    ROCKS_LOG_INFO(cfd_->ioptions()->logger,"[%s] WriteDirectWithChecksum: backgroundop: %s", cfd_->GetName().c_str(),
-                   InputRateController::BackgroundOpString(background_op_).c_str());
-  }
   assert(perform_data_verification_ && buffered_data_with_checksum_);
   IOStatus s;
   const size_t alignment = buf_.Alignment();
