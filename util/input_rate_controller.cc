@@ -77,7 +77,7 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
     bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
-    bool DL = (estimated_compaction_needed_bytes >= mutable_cf_options.hard_pending_compaction_bytes_limit);
+    bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit *(3/4)));
     result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (DL ? 4 : 0);
   }
   return result;
