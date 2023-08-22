@@ -963,7 +963,7 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
           mutable_cf_options.max_write_buffer_number);
     } else if (write_stall_condition == WriteStallCondition::kStopped &&
                write_stall_cause == WriteStallCause::kL0FileCountLimit) {
-      if(!ioptions_.input_rate_cotroller_enabled){
+      if(ioptions_.input_rate_cotroller_enabled){
         ROCKS_LOG_WARN(ioptions_.logger,
                        "[%s] Stopping flush-writes because we have %d level-0 files",
                        name_.c_str(), vstorage->l0_delay_trigger_count());
