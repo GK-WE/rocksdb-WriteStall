@@ -964,32 +964,40 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
     } else if (write_stall_condition == WriteStallCondition::kStopped &&
                write_stall_cause == WriteStallCause::kL0FileCountLimit) {
       if(!ioptions_.input_rate_cotroller_enabled){
+        ROCKS_LOG_WARN(ioptions_.logger,
+                       "[%s] Stopping flush-writes because we have %d level-0 files",
+                       name_.c_str(), vstorage->l0_delay_trigger_count());
+      }else{
         write_controller_token_ = write_controller->GetStopToken();
         internal_stats_->AddCFStats(InternalStats::L0_FILE_COUNT_LIMIT_STOPS, 1);
         if (compaction_picker_->IsLevel0CompactionInProgress()) {
           internal_stats_->AddCFStats(
               InternalStats::LOCKED_L0_FILE_COUNT_LIMIT_STOPS, 1);
         }
+        ROCKS_LOG_WARN(ioptions_.logger,
+                       "[%s] Stopping writes because we have %d level-0 files",
+                       name_.c_str(), vstorage->l0_delay_trigger_count());
       }
 
-      ROCKS_LOG_WARN(ioptions_.logger,
-                     "[%s] Stopping writes because we have %d level-0 files",
-                     name_.c_str(), vstorage->l0_delay_trigger_count());
     } else if (write_stall_condition == WriteStallCondition::kStopped &&
                write_stall_cause == WriteStallCause::kPendingCompactionBytes) {
-      if(!ioptions_.input_rate_cotroller_enabled){
+      if(ioptions_.input_rate_cotroller_enabled){
+        ROCKS_LOG_WARN(
+            ioptions_.logger,
+            "[%s] Stopping l0cmp-writes because of estimated pending compaction "
+            "bytes %" PRIu64,
+            name_.c_str(), compaction_needed_bytes);
+      }else{
         write_controller_token_ = write_controller->GetStopToken();
         internal_stats_->AddCFStats(
             InternalStats::PENDING_COMPACTION_BYTES_LIMIT_STOPS, 1);
+        ROCKS_LOG_WARN(
+            ioptions_.logger,
+            "[%s] Stopping writes because of estimated pending compaction "
+            "bytes %" PRIu64,
+            name_.c_str(), compaction_needed_bytes);
       }
-      write_controller_token_ = write_controller->GetStopToken();
-      internal_stats_->AddCFStats(
-          InternalStats::PENDING_COMPACTION_BYTES_LIMIT_STOPS, 1);
-      ROCKS_LOG_WARN(
-          ioptions_.logger,
-          "[%s] Stopping writes because of estimated pending compaction "
-          "bytes %" PRIu64,
-          name_.c_str(), compaction_needed_bytes);
+
     } else if (write_stall_condition == WriteStallCondition::kDelayed &&
                write_stall_cause == WriteStallCause::kMemtableLimit) {
       write_controller_token_ =
