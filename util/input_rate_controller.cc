@@ -254,7 +254,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                          "io_pri: %s "
                                          "bytes: %zu "
                                          "ccv_cur: %s "
-                                         "ccv_cushion: %s",cfd->GetName().c_str(),
+                                         "ccv_cushion: %s ",cfd->GetName().c_str(),
                                          BackgroundOpString(background_op).c_str(),
                                          BackgroundOpPriorityString(io_pri).c_str(),
                                          bytes,
@@ -271,7 +271,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                          "io_pri: %s "
                                          "bytes: %zu "
                                          "ccv_cur: %s "
-                                         "ccv_cushion: %s",cfd->GetName().c_str(),
+                                         "ccv_cushion: %s ",cfd->GetName().c_str(),
                                          BackgroundOpString(background_op).c_str(),
                                          BackgroundOpPriorityString(io_pri).c_str(), bytes,
                                          CCVConditionString(ccv_cur).c_str(),
@@ -302,7 +302,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                            "bytes: %zu "
                                            "ccv_cur: %s "
                                            "ccv_cushion: %s "
-                                           "req: %p", cfd->GetName().c_str(),
+                                           "req: %p ", cfd->GetName().c_str(),
                                            BackgroundOpString(background_op).c_str(),
                                            BackgroundOpPriorityString(io_pri).c_str(),
                                            bytes,
@@ -319,7 +319,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                              "ccv_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
-                                             "signaled_by_op: %s", cfd->GetName().c_str(),
+                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(background_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
                                              bytes,
@@ -338,7 +338,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                              "ccv_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
-                                             "signaled_by_op: %s", cfd->GetName().c_str(),
+                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(background_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
                                              bytes,
@@ -398,7 +398,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                              "ccv_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
-                                             "signaled_by_op: %s", cfd->GetName().c_str(),
+                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(background_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
                                              bytes,
@@ -417,7 +417,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                              "ccv_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
-                                             "signaled_by_op: %s", cfd->GetName().c_str(),
+                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(background_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
                                              bytes,
@@ -435,7 +435,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                              "ccv_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
-                                             "signaled_by_op: %s", cfd->GetName().c_str(),
+                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(background_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
                                              bytes,
@@ -459,8 +459,8 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                          "background_op: %s "
                                          "io_pri: %s "
                                          "bytes: %zu "
-                                         "ccv_when_req_issue: %s"
-                                         "cushion_when_req_issue: %s",cfd->GetName().c_str(),
+                                         "ccv_when_req_issue: %s "
+                                         "cushion_when_req_issue: %s ",cfd->GetName().c_str(),
                                          BackgroundOpString(background_op).c_str(),
                                          BackgroundOpPriorityString(io_pri).c_str(),
                                          bytes,
@@ -472,12 +472,12 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken-Enter: "
                  "background_op: %s "
-                 "io_pri: HIGH", cfd->GetName().c_str(),
+                 "io_pri: HIGH ", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   MutexLock g(&request_mutex_);
   ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken-GotMutex: "
                  "background_op: %s "
-                 "io_pri: HIGH", cfd->GetName().c_str(),
+                 "io_pri: HIGH ", cfd->GetName().c_str(),
                  BackgroundOpString(background_op).c_str());
   --cur_high_;
   if(cur_high_.load(std::memory_order_relaxed)==0 && !low_bkop_queue_.empty()){
@@ -571,10 +571,10 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
       auto r = queue.front();
       queue.front()->signaled_reason = TSREASON_NOCMP_DLCC;
       queue.front()->signaled_by_op = Env::BK_TOTAL;
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-StartSignal-STOPop:"
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-StartSignal-STOPop: "
                                              "sum: %d "
                                              "count %d "
-                                             "req: %p signal_reason: TSREASON_NOCMP_DLCC"
+                                             "req: %p signal_reason: TSREASON_NOCMP_DLCC "
                                              "signaled_op: %s ", cfd->GetName().c_str(),
                                              sum,
                                              cnt,
@@ -582,10 +582,10 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
                                              BackgroundOpString((Env::BackgroundOp)i).c_str());
       queue.front()->cv.Signal();
       queue.pop_front();
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-FinishSignal-STOPop:"
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-FinishSignal-STOPop: "
                                              "sum: %d "
                                              "count %d "
-                                             "req: %p signal_reason: TSREASON_NOCMP_DLCC"
+                                             "req: %p signal_reason: TSREASON_NOCMP_DLCC "
                                              "signaled_op: %s ", cfd->GetName().c_str(),
                                              sum,
                                              cnt,
@@ -611,12 +611,12 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
       stopped_bkop_queue_[i].front()->signaled_by_op = cur_op;
       stopped_bkop_queue_[i].front()->signaled_reason = TSREASON_CCV_CHANGE;
 
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-StartSignal-STOPop:"
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-StartSignal-STOPop: "
                                              "background_op: %s "
                                              "io_pri: %s "
                                              "sum: %d "
                                              "count %d "
-                                             "req: %p signal_reason: TSREASON_CCV_CHANGE"
+                                             "req: %p signal_reason: TSREASON_CCV_CHANGE "
                                              "signaled_op: %s ", cfd->GetName().c_str(),
                      BackgroundOpString(cur_op).c_str(),
                      BackgroundOpPriorityString(io_pri).c_str(),
@@ -628,12 +628,12 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
       stopped_bkop_queue_[i].front()->cv.Signal();
       stopped_bkop_queue_[i].pop_front();
 
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-STOPop:"
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-STOPop: "
                                              "background_op: %s "
                                              "io_pri: %s "
                                              "sum: %d "
                                              "count %d "
-                                             "req: %p signal_reason: TSREASON_CCV_CHANGE"
+                                             "req: %p signal_reason: TSREASON_CCV_CHANGE "
                                              "signaled_op: %s ", cfd->GetName().c_str(),
                                              BackgroundOpString(cur_op).c_str(),
                                              BackgroundOpPriorityString(io_pri).c_str(),
