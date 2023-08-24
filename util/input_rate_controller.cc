@@ -154,9 +154,12 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
                                                 ((background_op == Env::BK_L0CMP)?
                                                 (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) : IO_LOW); // L0-L1 compaction stopped;
     break;
-    case CCV_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
-                                                ((background_op == Env::BK_L0CMP)?
-                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
+//    case CCV_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
+//                                                ((background_op == Env::BK_L0CMP)?
+//                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
+      case CCV_DLMT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH:
+                                                  ((background_op == Env::BK_L0CMP)?
+                                                  (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
     break;
     case CCV_DLL0: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
                                                 ((background_op==Env::BK_L0CMP)?
