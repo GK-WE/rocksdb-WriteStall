@@ -48,7 +48,8 @@ class InputRateController{
     TSREASON_TIMEOUT = 1,
     TSREASON_NOCMP_DLCC = 2,
     TSREASON_ZERO_HIGH = 3,
-    TSREASON_TOTAL = 4
+    TSREASON_SHUTDOWN =4,
+    TSREASON_TOTAL = 5
   };
 
   void DecideIfNeedRequestReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token);

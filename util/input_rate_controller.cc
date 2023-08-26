@@ -51,6 +51,7 @@ InputRateController::~InputRateController() {
   for (int i = Env::BK_TOTAL - 1; i >= Env::BK_FLUSH; --i) {
     std::deque<Req*> queue = stopped_bkop_queue_[i];
     while (!queue.empty()) {
+      queue.front()->signaled_reason = TSREASON_SHUTDOWN;
       queue.front()->cv.Signal();
       queue.pop_front();
     }
@@ -313,43 +314,25 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                            CushionString(cushion).c_str(),
                                            &r);
     r.cv.Wait();
-    if(r.signaled_reason==TSREASON_NOCMP_DLCC){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishWait-Signaled: "
-                                             "backgroundop: %s "
-                                             "io_pri: %s "
-                                             "bytes: %zu "
-                                             "ccv_when_req_issue: %s "
-                                             "ccv_when_req_signaled: %s "
-                                             "req: %p "
-                                             "signaled_reason: %s "
-                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
-                                             BackgroundOpString(background_op).c_str(),
-                                             BackgroundOpPriorityString(io_pri).c_str(),
-                                             bytes,
-                                             CCVConditionString(ccv_cur).c_str(),
-                                             CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
-                                             &r,
-                                             TSReasonString(TSREASON_NOCMP_DLCC).c_str(),
-                                             BackgroundOpString(r.signaled_by_op).c_str());
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishWait-Signaled: "
+                                           "backgroundop: %s "
+                                           "io_pri: %s "
+                                           "bytes: %zu "
+                                           "ccv_when_req_issue: %s "
+                                           "ccv_when_req_signaled: %s "
+                                           "req: %p "
+                                           "signaled_reason: %s "
+                                           "signaled_by_op: %s ", cfd->GetName().c_str(),
+                                           BackgroundOpString(background_op).c_str(),
+                                           BackgroundOpPriorityString(io_pri).c_str(),
+                                           bytes,
+                                           CCVConditionString(ccv_cur).c_str(),
+                                           CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
+                                           &r,
+                                           TSReasonString(r.signaled_reason).c_str(),
+                                           BackgroundOpString(r.signaled_by_op).c_str());
+    if(r.signaled_reason==TSREASON_NOCMP_DLCC || (r.signaled_reason==TSREASON_TOTAL)){
       stopped_bkop_queue_[background_op].erase(std::remove(stopped_bkop_queue_[background_op].begin(), stopped_bkop_queue_[background_op].end(), &r), stopped_bkop_queue_[background_op].end());
-    }else if(r.signaled_reason==TSREASON_CCV_CHANGE){
-      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishWait-Signaled: "
-                                             "backgroundop: %s "
-                                             "io_pri: %s "
-                                             "bytes: %zu "
-                                             "ccv_when_req_issue: %s "
-                                             "ccv_when_req_signaled: %s "
-                                             "req: %p "
-                                             "signaled_reason: %s "
-                                             "signaled_by_op: %s ", cfd->GetName().c_str(),
-                                             BackgroundOpString(background_op).c_str(),
-                                             BackgroundOpPriorityString(io_pri).c_str(),
-                                             bytes,
-                                             CCVConditionString(ccv_cur).c_str(),
-                                             CCVConditionString(prev_write_stall_condition_.load(std::memory_order_relaxed)).c_str(),
-                                             &r,
-                                             TSReasonString(TSREASON_CCV_CHANGE).c_str(),
-                                             BackgroundOpString(r.signaled_by_op).c_str());
     }
 
   }else if(io_pri == IO_HIGH){
@@ -456,9 +439,22 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
 
   if(stop_){
     --requests_to_wait_;
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-Decrease-requests_to_wait: "
+                                           "background_op: %s "
+                                           "io_pri: %s "
+                                           "bytes: %zu "
+                                           "ccv_when_req_issue: %s "
+                                           "cushion_when_req_issue: %s "
+                                           "requests_to_wait: %d ",cfd->GetName().c_str(),
+                                           BackgroundOpString(background_op).c_str(),
+                                           BackgroundOpPriorityString(io_pri).c_str(),
+                                           bytes,
+                                           CCVConditionString(ccv_cur).c_str(),
+                                           CushionString(cushion).c_str(),
+                                           requests_to_wait_);
     exit_cv_.Signal();
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-RealseMutex: "
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-ReleaseMutex: "
                                          "background_op: %s "
                                          "io_pri: %s "
                                          "bytes: %zu "
@@ -740,6 +736,8 @@ std::string InputRateController::TSReasonString(int ts) {
       res = "TSREASON_TIMEOUT"; break;
     case TSREASON_NOCMP_DLCC:
       res = "TSREASON_NOCMP_DLCC"; break;
+    case TSREASON_SHUTDOWN:
+      res = "TSREASON_SHUTDOWN"; break;
     default: res = "NA"; break;
   }
   return res;

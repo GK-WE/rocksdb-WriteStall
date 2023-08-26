@@ -14,6 +14,7 @@
 #include "db/compaction/compaction_picker_level.h"
 #include "logging/log_buffer.h"
 #include "test_util/sync_point.h"
+#include "logging/logging.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -168,6 +169,22 @@ void LevelCompactionBuilder::PickFileToCompact(
 void LevelCompactionBuilder::SetupInitialFiles() {
   // Find the compactions by size on all levels.
   bool skipped_l0_to_base = false;
+  std::string compaction_score = "[";
+  std::string compaction_level = "[";
+  for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++){
+    compaction_level += " ";
+    compaction_score += " ";
+    compaction_level += std::to_string(vstorage_->CompactionScoreLevel(i));
+    compaction_score += std::to_string(vstorage_->CompactionScore(i));
+  }
+  compaction_level += " ]";
+  compaction_score += " ]";
+  ROCKS_LOG_BUFFER(
+      log_buffer_,
+      "[%s] CompactionPriorityInformation: CompactionLevel: %s "
+      "Compaction Score: %s ", cf_name_.c_str(),
+      compaction_level.c_str(),
+      compaction_score.c_str());
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
@@ -177,6 +194,11 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
+        ROCKS_LOG_BUFFER(
+            log_buffer_,
+            "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction",
+            cf_name_.c_str());
+        //TODO(): if base level has too many files, we also shoudn't starving base level
         continue;
       }
       output_level_ =
