@@ -194,7 +194,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if(start_level_score_ < 20){
+        if(start_level_score_ < 5){
           ROCKS_LOG_BUFFER(
               log_buffer_,
               "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since start_level_score < 20.",
