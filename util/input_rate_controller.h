@@ -65,9 +65,9 @@ class InputRateController{
 
   bool GetCmpNoWhenDLCC(){return compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed);};
 
- private:
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
+ private:
   int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 
   BackgroundOp_Priority DecideBackgroundOpPriority( Env::BackgroundOp background_op, int cur_ws,int cushion);

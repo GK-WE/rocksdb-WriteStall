@@ -73,12 +73,12 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
   if(current!= nullptr){
     auto* vstorage = current->storage_info();
     int num_l0_sst = vstorage->l0_delay_trigger_count();
-//    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
-    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
+    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
+//    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
     bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
-    bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit *(3/4)));
+    bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit ));
     result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (DL ? 4 : 0);
   }
   return result;
@@ -113,10 +113,10 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     // we should further check if it leaves room for L0-L1 cmp
     assert(current!=nullptr);
     auto* vstorage = current->storage_info();
-//    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
-    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
+    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
+//    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
     uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
-    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(2/3))){
+    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(3/4))){
       result += 2;
     }
   }

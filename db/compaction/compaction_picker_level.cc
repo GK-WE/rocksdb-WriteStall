@@ -198,7 +198,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
             log_buffer_,
             "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction",
             cf_name_.c_str());
-        //TODO(): if base level has too many files, we also shoudn't starving base level
+        //TODO(): if base level has too many files, we also shouldn't starving base level
         continue;
       }
       output_level_ =

@@ -3068,7 +3068,6 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
 
   CompactionJobStats compaction_job_stats;
   Status status;
-  bool dlcc = false;
   if (!error_handler_.IsBGWorkStopped()) {
     if (shutting_down_.load(std::memory_order_acquire)) {
       status = Status::ShutdownInProgress();
@@ -3189,15 +3188,6 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // NOTE: try to avoid unnecessary copy of MutableCFOptions if
       // compaction is not necessary. Need to make sure mutex is held
       // until we make a copy in the following code
-      auto* vstorage = cfd->current()->storage_info();
-      if(vstorage->estimated_compaction_needed_bytes() >= mutable_cf_options->hard_pending_compaction_bytes_limit){
-        ROCKS_LOG_BUFFER(log_buffer, "DL-CC including L0CMP&DLCMP is violated!");
-        if(vstorage->estimated_compaction_needed_bytes_deeperlevel() < mutable_cf_options->hard_pending_compaction_bytes_limit){
-          ROCKS_LOG_BUFFER(log_buffer, "However DL-CC only including DLCMP is not violated!");
-        }else{
-          dlcc = true;
-        }
-      }
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
       c.reset(cfd->PickCompaction(*mutable_cf_options, mutable_db_options_,
                                   log_buffer));
@@ -3252,7 +3242,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       }
 
       if(cfd != nullptr && cfd->ioptions()->input_rate_controller!=nullptr){
+        int ccv = cfd->ioptions()->input_rate_controller->DecideCurWriteStallCondition(cfd,*mutable_cf_options);
+        bool dlcc = (ccv >> 2) & 1;
         if(!c && dlcc){
+          ROCKS_LOG_BUFFER(log_buffer, "DL-CC including L0CMP&DLCMP is violated!");
           cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
         }else if(cfd->ioptions()->input_rate_controller->GetCmpNoWhenDLCC()){
           cfd->ioptions()->input_rate_controller->SetCmpNoWhenDLCC(false);
