@@ -3244,8 +3244,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       if(cfd != nullptr && cfd->ioptions()->input_rate_controller!=nullptr){
         int ccv = cfd->ioptions()->input_rate_controller->DecideCurWriteStallCondition(cfd,*mutable_cf_options);
         bool dlcc = (ccv >> 2) & 1;
-        if(!c && dlcc){
-          ROCKS_LOG_BUFFER(log_buffer, "compaction_nothing_todo_when_dlccv: true !");
+        if(!c && dlcc &&
+            (!cfd->compaction_picker()->compactions_in_progress())
+            && (!cfd->compaction_picker()->level0_compactions_in_progress())){
+          ROCKS_LOG_BUFFER(log_buffer, "No compaction ongoing and compaction_nothing_todo_when_dlccv: true !");
           cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
         }else if(cfd->ioptions()->input_rate_controller->GetCmpNoWhenDLCC()){
           cfd->ioptions()->input_rate_controller->SetCmpNoWhenDLCC(false);
