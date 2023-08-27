@@ -65,6 +65,17 @@ InputRateController::~InputRateController() {
   }
 }
 
+int InputRateController::DecideCurDiskWriteStallCondition(VersionStorageInfo* vstorage, const MutableCFOptions& mutable_cf_options) {
+  int result = InputRateController::CCV_NORMAL;
+  int num_l0_sst = vstorage->l0_delay_trigger_count();
+  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
+
+  bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
+  bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit ));
+  result = (L0 ? 2 : 0) + (DL ? 4 : 0);
+  return result;
+}
+
 int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
                                                       const MutableCFOptions& mutable_cf_options){
   int result = InputRateController::CCV_NORMAL;

@@ -3244,11 +3244,15 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       if(cfd != nullptr && cfd->ioptions()->input_rate_controller!=nullptr){
         int ccv = cfd->ioptions()->input_rate_controller->DecideCurWriteStallCondition(cfd,*mutable_cf_options);
         bool dlcc = (ccv >> 2) & 1;
-        if(!c && dlcc &&
-            (!cfd->compaction_picker()->compactions_in_progress())
-            && (!cfd->compaction_picker()->level0_compactions_in_progress())){
-          ROCKS_LOG_BUFFER(log_buffer, "No compaction ongoing and compaction_nothing_todo_when_dlccv: true !");
+        if(!c && dlcc){
           cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
+          if(cfd->compaction_picker()->level0_compactions_in_progress()){
+            // Should accelerate L1-L0 compaction, otherwise L1-L2 will be waiting until L1-L0 compaction is done
+            ROCKS_LOG_BUFFER(log_buffer, "L0-L1 compaction ongoing and L1-L2 compaction cannot be scheduled. compaction_nothing_todo_when_dlccv: true !");
+          }else if(cfd->compaction_picker()->compactions_in_progress()){
+            ROCKS_LOG_BUFFER(log_buffer, "DeeperLevel compaction ongoing. But compaction_nothing_todo_when_dlccv: true !");
+          }
+
         }else if(cfd->ioptions()->input_rate_controller->GetCmpNoWhenDLCC()){
           cfd->ioptions()->input_rate_controller->SetCmpNoWhenDLCC(false);
         }

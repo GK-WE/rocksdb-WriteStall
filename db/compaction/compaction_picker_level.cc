@@ -15,6 +15,7 @@
 #include "logging/log_buffer.h"
 #include "test_util/sync_point.h"
 #include "logging/logging.h"
+#include "util/input_rate_controller.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -185,19 +186,26 @@ void LevelCompactionBuilder::SetupInitialFiles() {
       "Compaction Score: %s ", cf_name_.c_str(),
       compaction_level.c_str(),
       compaction_score.c_str());
+  int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
+  bool dl_ccv = (ccv >> 2) & 1;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
     if (start_level_score_ >= 1) {
+      if(ioptions_.input_rate_cotroller_enabled){
+        if(start_level_ == 0 && dl_ccv){
+          continue;
+        }
+      }
       if (skipped_l0_to_base && start_level_ == vstorage_->base_level()) {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if(start_level_score_ < 5){
+        if(start_level_score_ < 5 && !dl_ccv){
           ROCKS_LOG_BUFFER(
               log_buffer_,
-              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since start_level_score < 20.",
+              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since start_level_score < 5 and no DL-CCV.",
               cf_name_.c_str());
           continue;
         }

@@ -67,6 +67,8 @@ class InputRateController{
 
   static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
+  static int DecideCurDiskWriteStallCondition(VersionStorageInfo* vstorage,const MutableCFOptions& mutable_cf_options);
+
  private:
   int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 
