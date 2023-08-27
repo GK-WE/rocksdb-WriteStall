@@ -2807,7 +2807,7 @@ void VersionStorageInfo::ComputeCompactionScore(
             MaxBytesForLevel(level);
         double score_nocompacting = static_cast<double>(level_bytes_no_compacting) /
             MaxBytesForLevel(level);
-        score = score_intotal>50?score_intotal:score_nocompacting;
+        score = (score_intotal >= 20) ? score_intotal : score_nocompacting;
       }else{
         // Compute the ratio of current size to size limit.
         uint64_t level_bytes_no_compacting = 0;

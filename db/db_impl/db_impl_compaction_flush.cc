@@ -3245,7 +3245,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         int ccv = cfd->ioptions()->input_rate_controller->DecideCurWriteStallCondition(cfd,*mutable_cf_options);
         bool dlcc = (ccv >> 2) & 1;
         if(!c && dlcc){
-          ROCKS_LOG_BUFFER(log_buffer, "DL-CC including L0CMP&DLCMP is violated!");
+          ROCKS_LOG_BUFFER(log_buffer, "compaction_nothing_todo_when_dlccv: true !");
           cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
         }else if(cfd->ioptions()->input_rate_controller->GetCmpNoWhenDLCC()){
           cfd->ioptions()->input_rate_controller->SetCmpNoWhenDLCC(false);

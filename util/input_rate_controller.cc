@@ -103,7 +103,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     auto* vstorage = current->storage_info();
     int l0_sst_num = vstorage->l0_delay_trigger_count();
     int l0_sst_limit = mutable_cf_options.level0_stop_writes_trigger;
-    if(l0_sst_num > (int)(l0_sst_limit*(3/4))){
+    if(l0_sst_num > (int)(l0_sst_limit*(1/2))){
       result += 1;
     }
   }
@@ -116,7 +116,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
 //    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
     uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
-    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(3/4))){
+    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(1/2))){
       result += 2;
     }
   }

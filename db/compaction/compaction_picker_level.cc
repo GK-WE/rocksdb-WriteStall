@@ -194,12 +194,13 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        ROCKS_LOG_BUFFER(
-            log_buffer_,
-            "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction",
-            cf_name_.c_str());
-        //TODO(): if base level has too many files, we also shouldn't starving base level
-        continue;
+        if(start_level_score_ < 20){
+          ROCKS_LOG_BUFFER(
+              log_buffer_,
+              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since start_level_score < 20.",
+              cf_name_.c_str());
+          continue;
+        }
       }
       output_level_ =
           (start_level_ == 0) ? vstorage_->base_level() : start_level_ + 1;
