@@ -526,7 +526,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     if(ioptions_.input_rate_cotroller_enabled){
       uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
-      if((output_level_inputs.size() > 2*output_level_target_num) && (output_level_ == start_level_ + 1)){
+      if((output_level_inputs.size() > 2 * output_level_target_num) && (output_level_ == start_level_ + 1)){
         ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: output level is too large: "
                          "start_level: %d "
                          "output_level: %d "
@@ -536,6 +536,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
                           output_level_,
                           output_level_inputs.size(),
                           output_level_target_num);
+        start_level_inputs_.clear();
         continue;
       }
     }
