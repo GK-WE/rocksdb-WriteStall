@@ -2794,31 +2794,6 @@ void VersionStorageInfo::ComputeCompactionScore(
         }
       }
     } else {
-//      if(immutable_options.input_rate_cotroller_enabled && level==1){
-//        uint64_t level_bytes_no_compacting = 0;
-//        uint64_t level_bytes_intotal = 0;
-//        for (auto f : files_[level]) {
-//          if (!f->being_compacted) {
-//            level_bytes_no_compacting += f->compensated_file_size;
-//          }
-//          level_bytes_intotal += f->compensated_file_size;
-//        }
-//        double score_intotal = static_cast<double>(level_bytes_intotal) /
-//            MaxBytesForLevel(level);
-//        double score_nocompacting = static_cast<double>(level_bytes_no_compacting) /
-//            MaxBytesForLevel(level);
-//        score = (score_intotal >= 5) ? score_intotal : score_nocompacting;
-//      }else{
-//        // Compute the ratio of current size to size limit.
-//        uint64_t level_bytes_no_compacting = 0;
-//        for (auto f : files_[level]) {
-//          if (!f->being_compacted) {
-//            level_bytes_no_compacting += f->compensated_file_size;
-//          }
-//        }
-//        score = static_cast<double>(level_bytes_no_compacting) /
-//            MaxBytesForLevel(level);
-//      }
       // Compute the ratio of current size to size limit.
       uint64_t level_bytes_no_compacting = 0;
       for (auto f : files_[level]) {
