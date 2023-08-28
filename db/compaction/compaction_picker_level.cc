@@ -199,6 +199,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
     if (start_level_score_ >= 1) {
+
       if(ioptions_.input_rate_cotroller_enabled){
         if(start_level_ == 0 && dl_ccv){
           if((i + 1) < (compaction_picker_->NumberLevels() - 1)
@@ -207,15 +208,20 @@ void LevelCompactionBuilder::SetupInitialFiles() {
           }
         }
       }
+
       if (skipped_l0_to_base && start_level_ == vstorage_->base_level()) {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if(!dl_ccv){
+        if((ioptions_.input_rate_cotroller_enabled && !dl_ccv && !start_level_inputs_.abandon_outputlevel_toolarge) ||
+            (!ioptions_.input_rate_cotroller_enabled)){
           ROCKS_LOG_BUFFER(
               log_buffer_,
-              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since no DL-CCV.",
-              cf_name_.c_str());
+              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction: DL-CCV: %s TooLargeL1: %s input_rate_cotroller_enabled: %s ",
+              cf_name_.c_str(),
+              dl_ccv?"true":"false",
+              start_level_inputs_.abandon_outputlevel_toolarge?"true":"false",
+              ioptions_.input_rate_cotroller_enabled?"true":"false");
           continue;
         }
       }
@@ -469,6 +475,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   }
 
   start_level_inputs_.clear();
+  start_level_inputs_.abandon_outputlevel_toolarge = false;
 
   assert(start_level_ >= 0);
 
@@ -482,6 +489,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   unsigned int cmp_idx;
   for (cmp_idx = vstorage_->NextCompactionIndex(start_level_);
        cmp_idx < file_size.size(); cmp_idx++) {
+    start_level_inputs_.abandon_outputlevel_toolarge = false;
     int index = file_size[cmp_idx];
     auto* f = level_files[index];
 
@@ -526,7 +534,9 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     if(ioptions_.input_rate_cotroller_enabled){
       uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
-      if((output_level_inputs.size() > 2 * output_level_target_num) && (output_level_ == start_level_ + 1)){
+      if((output_level_inputs.size() > mutable_cf_options_.max_bytes_for_level_multiplier * output_level_target_num) &&
+          (output_level_ == start_level_ + 1) &&
+          output_level_ == 1){
         ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: output level is too large: "
                          "start_level: %d "
                          "output_level: %d "
@@ -536,6 +546,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
                           output_level_,
                           output_level_inputs.size(),
                           output_level_target_num);
+        start_level_inputs_.abandon_outputlevel_toolarge = true;
         start_level_inputs_.clear();
         continue;
       }
