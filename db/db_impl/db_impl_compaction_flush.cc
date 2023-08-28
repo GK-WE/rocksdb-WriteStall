@@ -3246,10 +3246,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         bool dlcc = (ccv >> 2) & 1;
         if(!c && dlcc){
           cfd->ioptions()->input_rate_controller->SignalStopOpWhenNoCmpButDLCC(cfd);
-          if(cfd->compaction_picker()->level0_compactions_in_progress()){
+          if(cfd->compaction_picker()->IsLevel0CompactionInProgress()){
             // Should accelerate L1-L0 compaction, otherwise L1-L2 will be waiting until L1-L0 compaction is done
             ROCKS_LOG_BUFFER(log_buffer, "L0-L1 compaction ongoing and L1-L2 compaction cannot be scheduled. compaction_nothing_todo_when_dlccv: true !");
-          }else if(cfd->compaction_picker()->compactions_in_progress()){
+          }else if(!cfd->compaction_picker()->compactions_in_progress()->empty()){
             ROCKS_LOG_BUFFER(log_buffer, "DeeperLevel compaction ongoing. But compaction_nothing_todo_when_dlccv: true !");
           }
 
