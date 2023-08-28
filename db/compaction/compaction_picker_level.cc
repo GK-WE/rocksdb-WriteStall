@@ -172,20 +172,26 @@ void LevelCompactionBuilder::SetupInitialFiles() {
   bool skipped_l0_to_base = false;
   std::string compaction_score = "[";
   std::string compaction_level = "[";
+  std::string level_files_num = "[";
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++){
     compaction_level += " ";
     compaction_score += " ";
+    level_files_num += " ";
     compaction_level += std::to_string(vstorage_->CompactionScoreLevel(i));
     compaction_score += std::to_string(vstorage_->CompactionScore(i));
+    level_files_num += std::to_string(vstorage_->NumLevelFiles(vstorage_->CompactionScoreLevel(i)));
   }
   compaction_level += " ]";
   compaction_score += " ]";
+  level_files_num += " ]";
   ROCKS_LOG_BUFFER(
       log_buffer_,
       "[%s] CompactionPriorityInformation: CompactionLevel: %s "
-      "Compaction Score: %s ", cf_name_.c_str(),
+      "CompactionScore: %s "
+      "LevelFileNum: %s ", cf_name_.c_str(),
       compaction_level.c_str(),
-      compaction_score.c_str());
+      compaction_score.c_str(),
+      level_files_num.c_str());
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
@@ -205,10 +211,10 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if(start_level_score_ < 5 && !dl_ccv){
+        if(!dl_ccv){
           ROCKS_LOG_BUFFER(
               log_buffer_,
-              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since start_level_score < 5 and no DL-CCV.",
+              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction since no DL-CCV.",
               cf_name_.c_str());
           continue;
         }
@@ -515,6 +521,25 @@ bool LevelCompactionBuilder::PickFileToCompact() {
       start_level_inputs_.clear();
       continue;
     }
+    //if the total size of output level files involved in compaction is greater than
+    // the target level size of output level. We should wait the output level compacted
+    if(ioptions_.input_rate_cotroller_enabled){
+      uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
+      size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
+      if((output_level_inputs.size() > 2*output_level_target_num) && (output_level_ == start_level_ + 1)){
+        ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: output level is too large: "
+                         "start_level: %d "
+                         "output_level: %d "
+                         "output_level_input_num: %d "
+                         "output_level_target_num: %d ",
+                          start_level_,
+                          output_level_,
+                          output_level_inputs.size(),
+                          output_level_target_num);
+        continue;
+      }
+    }
+
     base_index_ = index;
     break;
   }
