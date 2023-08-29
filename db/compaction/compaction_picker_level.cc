@@ -68,9 +68,6 @@ class LevelCompactionBuilder {
   // Pick and return a compaction.
   Compaction* PickCompaction();
 
-  //Pick and return a multi level compaction when DL-CC is reached
-//  Compaction* PickDLCompaction();
-
   void LogCompactionScoreInfo();
 
   // Pick the initial files to compact to the next level. (or together
@@ -360,14 +357,6 @@ bool LevelCompactionBuilder::SetupOtherInputsIfNeeded() {
   return true;
 }
 
-//Compaction* LevelCompactionBuilder::PickDLCompaction(){
-//  LogCompactionScoreInfo();
-//
-//   //TODO(): Pick from level1 all the way to the last level needed compaction
-//  Compaction* c = GetCompaction();
-//  return c;
-//}
-
 Compaction* LevelCompactionBuilder::PickCompaction() {
   // Pick up the first file to start compaction. It may have been extended
   // to a clean cut.
@@ -607,16 +596,6 @@ Compaction* LevelCompactionPicker::PickCompaction(
   LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
-//  int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
-//  bool dl_ccv = (ccv >> 2) & 1;
-//  Compaction* c = nullptr;
-//  if(dl_ccv){
-//    c = builder.PickDLCompaction();
-//  }
-//  if(!c){
-//    c = builder.PickCompaction();
-//  }
-//  return c;
   return builder.PickCompaction();
 }
 }  // namespace ROCKSDB_NAMESPACE
