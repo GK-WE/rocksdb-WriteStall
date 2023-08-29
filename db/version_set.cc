@@ -1796,6 +1796,7 @@ VersionStorageInfo::VersionStorageInfo(
       next_file_to_compact_by_size_(num_levels_),
       compaction_score_(num_levels_),
       compaction_level_(num_levels_),
+      compaction_level_score_(num_levels_),
       l0_delay_trigger_count_(0),
       accumulated_file_size_(0),
       accumulated_raw_key_size_(0),
@@ -2623,10 +2624,8 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
     level0_compact_triggered = true;
     estimated_compaction_needed_bytes_ = level_size;
     bytes_compact_to_next_level = level_size;
-    estimated_compaction_needed_bytes_level0to1_ = level_size;
   } else {
     estimated_compaction_needed_bytes_ = 0;
-    estimated_compaction_needed_bytes_level0to1_ = 0;
   }
 
   // Level 1 and up.
@@ -2651,7 +2650,6 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
     if (level == base_level() && level0_compact_triggered) {
       // Add base level size to compaction if level0 compaction triggered.
       estimated_compaction_needed_bytes_ += level_size;
-      estimated_compaction_needed_bytes_level0to1_ += level_size;
     }
     // Add size added by previous compaction
     level_size += bytes_compact_to_next_level;
@@ -2678,10 +2676,45 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
       }
     }
   }
-#ifndef NDEBUG
-  assert(estimated_compaction_needed_bytes_ >= estimated_compaction_needed_bytes_level0to1_);
-#endif
-  estimated_compaction_needed_bytes_deeperlevel_ = estimated_compaction_needed_bytes_ - estimated_compaction_needed_bytes_level0to1_;
+
+  // estimated_dlcompaction_needed_bytes, excluding L0
+  bytes_next_level = 0;
+  bytes_compact_to_next_level = 0;
+  for (int level = base_level(); level <= MaxInputLevel(); level++) {
+    level_size = 0;
+    if (bytes_next_level > 0) {
+      level_size = bytes_next_level;
+      bytes_next_level = 0;
+    } else {
+      for (auto* f : files_[level]) {
+        level_size += f->fd.GetFileSize();
+      }
+    }
+    // Add size added by previous compaction
+    level_size += bytes_compact_to_next_level;
+    bytes_compact_to_next_level = 0;
+    uint64_t level_target = MaxBytesForLevel(level);
+    if (level_size > level_target) {
+      bytes_compact_to_next_level = level_size - level_target;
+      // Estimate the actual compaction fan-out ratio as size ratio between
+      // the two levels.
+      assert(bytes_next_level == 0);
+      if (level + 1 < num_levels_) {
+        for (auto* f : files_[level + 1]) {
+          bytes_next_level += f->fd.GetFileSize();
+        }
+      }
+      if (bytes_next_level > 0) {
+        assert(level_size > 0);
+        estimated_compaction_needed_bytes_deeperlevel_ += static_cast<uint64_t>(
+            static_cast<double>(bytes_compact_to_next_level) *
+            (static_cast<double>(bytes_next_level) /
+            static_cast<double>(level_size) +
+            1));
+      }
+    }
+  }
+
 }
 
 namespace {
@@ -2794,31 +2827,6 @@ void VersionStorageInfo::ComputeCompactionScore(
         }
       }
     } else {
-//      if(immutable_options.input_rate_cotroller_enabled && level==1){
-//        uint64_t level_bytes_no_compacting = 0;
-//        uint64_t level_bytes_intotal = 0;
-//        for (auto f : files_[level]) {
-//          if (!f->being_compacted) {
-//            level_bytes_no_compacting += f->compensated_file_size;
-//          }
-//          level_bytes_intotal += f->compensated_file_size;
-//        }
-//        double score_intotal = static_cast<double>(level_bytes_intotal) /
-//            MaxBytesForLevel(level);
-//        double score_nocompacting = static_cast<double>(level_bytes_no_compacting) /
-//            MaxBytesForLevel(level);
-//        score = (score_intotal >= 5) ? score_intotal : score_nocompacting;
-//      }else{
-//        // Compute the ratio of current size to size limit.
-//        uint64_t level_bytes_no_compacting = 0;
-//        for (auto f : files_[level]) {
-//          if (!f->being_compacted) {
-//            level_bytes_no_compacting += f->compensated_file_size;
-//          }
-//        }
-//        score = static_cast<double>(level_bytes_no_compacting) /
-//            MaxBytesForLevel(level);
-//      }
       // Compute the ratio of current size to size limit.
       uint64_t level_bytes_no_compacting = 0;
       for (auto f : files_[level]) {
@@ -2847,6 +2855,11 @@ void VersionStorageInfo::ComputeCompactionScore(
       }
     }
   }
+  //record score of level in the ordering: 0,1,2
+  for(int i = 0; i < num_levels() - 1; i++){
+    compaction_level_score_[compaction_level_[i]] = compaction_score_[i];
+  }
+
   ComputeFilesMarkedForCompaction();
   ComputeBottommostFilesMarkedForCompaction();
   if (mutable_cf_options.ttl > 0) {

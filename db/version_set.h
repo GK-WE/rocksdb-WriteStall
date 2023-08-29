@@ -523,9 +523,9 @@ class VersionStorageInfo {
     return estimated_compaction_needed_bytes_;
   }
 
-  uint64_t estimated_compaction_needed_bytes_level0to1() const{
-    return estimated_compaction_needed_bytes_level0to1_;
-  }
+//  uint64_t estimated_compaction_needed_bytes_level0to1() const{
+//    return estimated_compaction_needed_bytes_level0to1_;
+//  }
 
   uint64_t estimated_compaction_needed_bytes_deeperlevel() const {
     return estimated_compaction_needed_bytes_deeperlevel_;
@@ -662,6 +662,10 @@ class VersionStorageInfo {
   // These are used to pick the best compaction level
   std::vector<double> compaction_score_;
   std::vector<int> compaction_level_;
+
+  //score of level 0,1,2,...
+  std::vector<double> compaction_level_score_;
+
   int l0_delay_trigger_count_ = 0;  // Count used to trigger slow down and stop
                                     // for number of L0 files.
 
@@ -686,7 +690,7 @@ class VersionStorageInfo {
   // target sizes.
   uint64_t estimated_compaction_needed_bytes_;
 
-  uint64_t estimated_compaction_needed_bytes_level0to1_;
+//  uint64_t estimated_compaction_needed_bytes_level0to1_;
 
   uint64_t estimated_compaction_needed_bytes_deeperlevel_;
 

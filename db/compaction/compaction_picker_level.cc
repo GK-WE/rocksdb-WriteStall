@@ -68,6 +68,11 @@ class LevelCompactionBuilder {
   // Pick and return a compaction.
   Compaction* PickCompaction();
 
+  //Pick and return a multi level compaction when DL-CC is reached
+//  Compaction* PickDLCompaction();
+
+  void LogCompactionScoreInfo();
+
   // Pick the initial files to compact to the next level. (or together
   // in Intra-L0 compactions)
   void SetupInitialFiles();
@@ -136,6 +141,31 @@ class LevelCompactionBuilder {
   static const int kMinFilesForIntraL0Compaction = 4;
 };
 
+void LevelCompactionBuilder::LogCompactionScoreInfo() {
+  std::string compaction_score = "[";
+  std::string compaction_level = "[";
+  std::string level_files_num = "[";
+  for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++){
+    compaction_level += " ";
+    compaction_score += " ";
+    level_files_num += " ";
+    compaction_level += std::to_string(vstorage_->CompactionScoreLevel(i));
+    compaction_score += std::to_string(vstorage_->CompactionScore(i));
+    level_files_num += std::to_string(vstorage_->NumLevelFiles(vstorage_->CompactionScoreLevel(i)));
+  }
+  compaction_level += " ]";
+  compaction_score += " ]";
+  level_files_num += " ]";
+  ROCKS_LOG_BUFFER(
+      log_buffer_,
+      "[%s] CompactionPriorityInformation: CompactionLevel: %s "
+      "CompactionScore: %s "
+      "LevelFileNum: %s ", cf_name_.c_str(),
+      compaction_level.c_str(),
+      compaction_score.c_str(),
+      level_files_num.c_str());
+}
+
 void LevelCompactionBuilder::PickFileToCompact(
     const autovector<std::pair<int, FileMetaData*>>& level_files,
     bool compact_to_next_level) {
@@ -170,28 +200,7 @@ void LevelCompactionBuilder::PickFileToCompact(
 void LevelCompactionBuilder::SetupInitialFiles() {
   // Find the compactions by size on all levels.
   bool skipped_l0_to_base = false;
-  std::string compaction_score = "[";
-  std::string compaction_level = "[";
-  std::string level_files_num = "[";
-  for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++){
-    compaction_level += " ";
-    compaction_score += " ";
-    level_files_num += " ";
-    compaction_level += std::to_string(vstorage_->CompactionScoreLevel(i));
-    compaction_score += std::to_string(vstorage_->CompactionScore(i));
-    level_files_num += std::to_string(vstorage_->NumLevelFiles(vstorage_->CompactionScoreLevel(i)));
-  }
-  compaction_level += " ]";
-  compaction_score += " ]";
-  level_files_num += " ]";
-  ROCKS_LOG_BUFFER(
-      log_buffer_,
-      "[%s] CompactionPriorityInformation: CompactionLevel: %s "
-      "CompactionScore: %s "
-      "LevelFileNum: %s ", cf_name_.c_str(),
-      compaction_level.c_str(),
-      compaction_score.c_str(),
-      level_files_num.c_str());
+  LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
@@ -350,6 +359,14 @@ bool LevelCompactionBuilder::SetupOtherInputsIfNeeded() {
   }
   return true;
 }
+
+//Compaction* LevelCompactionBuilder::PickDLCompaction(){
+//  LogCompactionScoreInfo();
+//
+//   //TODO(): Pick from level1 all the way to the last level needed compaction
+//  Compaction* c = GetCompaction();
+//  return c;
+//}
 
 Compaction* LevelCompactionBuilder::PickCompaction() {
   // Pick up the first file to start compaction. It may have been extended
@@ -532,9 +549,11 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     //if the total size of output level files involved in compaction is greater than
     // the target level size of output level. We should wait the output level compacted
     if(ioptions_.input_rate_cotroller_enabled){
-      uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
+      uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
+//      uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
-      if((output_level_inputs.size() > mutable_cf_options_.max_bytes_for_level_multiplier * output_level_target_num) &&
+      if((output_level_inputs.size() >
+           mutable_cf_options_.max_bytes_for_level_multiplier * output_level_target_num) &&
           (output_level_ == start_level_ + 1) &&
           output_level_ == 1){
         ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: output level is too large: "
@@ -588,6 +607,16 @@ Compaction* LevelCompactionPicker::PickCompaction(
   LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
+//  int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
+//  bool dl_ccv = (ccv >> 2) & 1;
+//  Compaction* c = nullptr;
+//  if(dl_ccv){
+//    c = builder.PickDLCompaction();
+//  }
+//  if(!c){
+//    c = builder.PickCompaction();
+//  }
+//  return c;
   return builder.PickCompaction();
 }
 }  // namespace ROCKSDB_NAMESPACE
