@@ -212,7 +212,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
       if(ioptions_.input_rate_cotroller_enabled){
         if(start_level_ == 0 && dl_ccv){
           if((i + 1) < (compaction_picker_->NumberLevels() - 1)
-              && vstorage_->CompactionScore(i + 1) <= 1){
+              && vstorage_->CompactionScore(i + 1) > 1){
             continue;
           }
         }
