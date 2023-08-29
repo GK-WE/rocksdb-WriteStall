@@ -93,6 +93,12 @@ class Compaction {
 
   ~Compaction();
 
+  void SetIsMLOCompaction(bool mlo){is_mlo_compaction_=mlo; }
+
+  bool is_mlo_compaction() {return is_mlo_compaction_;}
+
+  void SetMaxSubCompactions(int max) {max_subcompactions_=max; }
+
   // Returns the level associated to the specified compaction input level.
   // If compaction_input_level is not specified, then input_level is set to 0.
   int level(size_t compaction_input_level = 0) const {
@@ -359,6 +365,7 @@ class Compaction {
   static bool IsFullCompaction(VersionStorageInfo* vstorage,
                                const std::vector<CompactionInputFiles>& inputs);
 
+  bool is_mlo_compaction_=false;
   VersionStorageInfo* input_vstorage_;
 
   const int start_level_;   // the lowest level to be compacted
