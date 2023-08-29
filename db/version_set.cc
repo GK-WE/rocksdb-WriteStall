@@ -2680,6 +2680,7 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
   // estimated_dlcompaction_needed_bytes, excluding L0
   bytes_next_level = 0;
   bytes_compact_to_next_level = 0;
+  estimated_compaction_needed_bytes_deeperlevel_ = 0;
   for (int level = base_level(); level <= MaxInputLevel(); level++) {
     level_size = 0;
     if (bytes_next_level > 0) {
