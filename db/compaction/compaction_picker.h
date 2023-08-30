@@ -190,6 +190,10 @@ class CompactionPicker {
                         CompactionInputFiles* output_level_inputs,
                         int* parent_index, int base_index);
 
+  bool is_picking_mlo_compaction(){return is_picking_mlo_compaction_;}
+
+  void SetIsPickMLOCompaction(bool mlo){ is_picking_mlo_compaction_ = mlo; }
+
   void GetGrandparents(VersionStorageInfo* vstorage,
                        const CompactionInputFiles& inputs,
                        const CompactionInputFiles& output_level_inputs,
@@ -218,6 +222,7 @@ class CompactionPicker {
   }
 
  protected:
+  bool is_picking_mlo_compaction_ = false;
   const ImmutableOptions& ioptions_;
 
 // A helper function to SanitizeCompactionInputFiles() that

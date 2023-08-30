@@ -455,7 +455,9 @@ bool CompactionPicker::SetupOtherInputs(
   // For now, we only support merging two levels, start level and output level.
   // We need to assert other levels are empty.
   for (int l = input_level + 1; l < output_level; l++) {
-    assert(vstorage->NumLevelFiles(l) == 0);
+    if(!is_picking_mlo_compaction_){
+      assert(vstorage->NumLevelFiles(l) == 0);
+    }
   }
 
   InternalKey smallest, largest;
