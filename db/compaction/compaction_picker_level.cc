@@ -397,7 +397,7 @@ bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
         continue;
       }
     }
-    if(mlo_compaction_levels.size()>4){
+    if(mlo_compaction_levels.size()>3){
       break;
     }
   }
