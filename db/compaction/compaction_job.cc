@@ -533,6 +533,8 @@ void CompactionJob::Prepare() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PREPARE);
 
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Start!");
+
   // Generate file_levels_ for compaction before making Iterator
   auto* c = compact_->compaction;
   assert(c->column_family_data() != nullptr);
@@ -545,8 +547,10 @@ void CompactionJob::Prepare() {
 
   if (c->ShouldFormSubcompactions()) {
     {
+      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare ShouldFormSubcompactions!");
       StopWatch sw(db_options_.clock, stats_, SUBCOMPACTION_SETUP_TIME);
       GenSubcompactionBoundaries();
+      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare GenSubcompactionBoundaries!");
     }
     assert(sizes_.size() == boundaries_.size() + 1);
 
@@ -566,6 +570,7 @@ void CompactionJob::Prepare() {
     compact_->sub_compact_states.emplace_back(c, start, end, size,
                                               /*sub_job_id*/ 0);
   }
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Finish!");
 }
 
 struct RangeWithSize {
@@ -710,6 +715,7 @@ Status CompactionJob::Run() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_RUN);
   TEST_SYNC_POINT("CompactionJob::Run():Start");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Start");
   log_buffer_->FlushBufferToLog();
   LogCompaction();
 
@@ -720,14 +726,18 @@ Status CompactionJob::Run() {
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run ThreadsPool Ready");
   for (size_t i = 1; i < compact_->sub_compact_states.size(); i++) {
     thread_pool.emplace_back(&CompactionJob::ProcessKeyValueCompaction, this,
                              &compact_->sub_compact_states[i]);
   }
 
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Start");
   // Always schedule the first subcompaction (whether or not there are also
   // others) in the current thread to be efficient with resources
   ProcessKeyValueCompaction(&compact_->sub_compact_states[0]);
+
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Finish");
 
   // Wait for all other threads (if there are any) to finish execution
   for (auto& thread : thread_pool) {
@@ -893,11 +903,14 @@ Status CompactionJob::Run() {
   TEST_SYNC_POINT("CompactionJob::Run():End");
 
   compact_->status = status;
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Finish");
   return status;
 }
 
 Status CompactionJob::Install(const MutableCFOptions& mutable_cf_options) {
   assert(compact_);
+
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Start");
 
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_INSTALL);
@@ -1033,6 +1046,7 @@ Status CompactionJob::Install(const MutableCFOptions& mutable_cf_options) {
   }
 
   CleanupCompaction();
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Finish");
   return status;
 }
 
