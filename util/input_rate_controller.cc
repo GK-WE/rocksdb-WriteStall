@@ -592,11 +592,11 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
       continue;
     }
 
-    int sum = stopped_bkop_queue_[i].size();
+//    int sum = stopped_bkop_queue_[i].size();
     int cnt = 0;
     while (!stopped_bkop_queue_[i].empty()) {
       cnt++;
-      auto r = stopped_bkop_queue_[i].front();
+//      auto r = stopped_bkop_queue_[i].front();
       stopped_bkop_queue_[i].front()->signaled_by_op = cur_op;
       stopped_bkop_queue_[i].front()->signaled_reason = TSREASON_CCV_CHANGE;
 
