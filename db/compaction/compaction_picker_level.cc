@@ -71,9 +71,16 @@ class LevelCompactionBuilder {
   //Pick and return a multi level compaction when DL-CC is reached
   Compaction* PickMLOCompaction();
 
+  //Pick and return files at a level that can trivial move to next level
+  Compaction* PickBatchTrivialMoveCompaction();
+
   bool SetupLevelsMLOCompaction();
 
   void SetupInitialFilesMLOCompaction();
+
+  void SetupInitialFilesTrivialMoveCompaction();
+
+  bool PickStartLevelFilesTrivialMoveCompaction();
 
   bool SetupOtherInputsMLOCompaction();
 
@@ -210,7 +217,7 @@ void LevelCompactionBuilder::PickFileToCompact(
 void LevelCompactionBuilder::SetupInitialFiles() {
   // Find the compactions by size on all levels.
   bool skipped_l0_to_base = false;
-  LogCompactionScoreInfo();
+//  LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,
                                                                   mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
@@ -403,7 +410,7 @@ bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
     return false;
   }
 
-  std::string mlo_levels = "[ ";
+  std::string mlo_levels = "[";
   for(const int l: mlo_compaction_levels){
     mlo_levels += " ";
     mlo_levels += std::to_string(l);
@@ -607,7 +614,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
 }
 
 Compaction* LevelCompactionBuilder::PickMLOCompaction(){
-  LogCompactionScoreInfo();
+//  LogCompactionScoreInfo();
   if(!SetupLevelsMLOCompaction()){
     return nullptr;
   }
@@ -628,6 +635,107 @@ Compaction* LevelCompactionBuilder::PickMLOCompaction(){
   Compaction* c = GetCompaction();
   c->SetIsMLOCompaction(true);
   c->SetMaxSubCompactions(4);
+  return c;
+}
+
+void LevelCompactionBuilder::SetupInitialFilesTrivialMoveCompaction() {
+  for(int i = 1; i < compaction_picker_->NumberLevels() - 1; i++) {
+    double level_score = vstorage_->CompactionLevelScore(i);
+    if(level_score>1){
+      start_level_inputs_.clear();
+      start_level_ = i;
+      if(PickStartLevelFilesTrivialMoveCompaction()){
+        output_level_ = i+1;
+        output_level_inputs_.level = output_level_;
+        break;
+      }
+    }
+  }
+}
+
+bool LevelCompactionBuilder::PickStartLevelFilesTrivialMoveCompaction() {
+  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction -Start! ");
+  assert(start_level_ > 0);
+  const std::vector<int>& file_size =
+      vstorage_->FilesByCompactionPri(start_level_);
+  const std::vector<FileMetaData*>& level_files =
+      vstorage_->LevelFiles(start_level_);
+  unsigned int cmp_idx;
+  for (cmp_idx = vstorage_->NextCompactionIndex(start_level_);
+  cmp_idx < file_size.size(); cmp_idx++) {
+    int index = file_size[cmp_idx];
+    auto* f = level_files[index];
+    if (f->being_compacted) {
+      continue;
+    }
+
+    start_level_inputs_.files.push_back(f);
+    start_level_inputs_.level = start_level_;
+    size_t old_start_level_input_num = start_level_inputs_.size();
+    if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
+                                                    &start_level_inputs_) ||
+                                                    compaction_picker_->FilesRangeOverlapWithCompaction(
+                                                        {start_level_inputs_}, output_level_)) {
+      size_t new_start_level_input_num = start_level_inputs_.size();
+      if(old_start_level_input_num == new_start_level_input_num){
+          start_level_inputs_.files.pop_back();
+      }else{
+        assert(new_start_level_input_num >  old_start_level_input_num);
+        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
+        while(exceed--){
+          start_level_inputs_.files.pop_back();
+        }
+      }
+      continue;
+    }
+
+    InternalKey smallest, largest;
+    compaction_picker_->GetRange(start_level_inputs_, &smallest, &largest);
+    CompactionInputFiles output_level_inputs;
+    output_level_inputs.level = start_level_+1;
+    vstorage_->GetOverlappingInputs(start_level_+1, &smallest, &largest,
+                                    &output_level_inputs.files);
+    if (!output_level_inputs.empty() &&
+        ioptions_.compaction_pri == kMinOverlappingRatio) {
+      // only pick files in start_level_ can do trivial move
+      // if files is updated in the order of kMinOverlappingRatio
+      // the following files won't satisfy trivial move
+      size_t new_start_level_input_num = start_level_inputs_.size();
+      if(old_start_level_input_num == new_start_level_input_num){
+        start_level_inputs_.files.pop_back();
+      }else{
+        assert(new_start_level_input_num >  old_start_level_input_num);
+        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
+        while(exceed--){
+          start_level_inputs_.files.pop_back();
+        }
+      }
+      break;
+    }
+    base_index_ = index;
+  }
+  if(start_level_inputs_.empty()){
+    ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - FAILED! "
+                                  "start_level: %d "
+                                  "start_level_input_num: %d ",
+                                  start_level_, start_level_inputs_.size());
+    return false;
+  }
+  vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
+  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - Finish! "
+                   "start_level: %d "
+                   "start_level_input_num: %d ",
+                   start_level_, start_level_inputs_.size());
+  return true;
+}
+
+Compaction* LevelCompactionBuilder::PickBatchTrivialMoveCompaction() {
+  SetupInitialFilesTrivialMoveCompaction();
+  //no need to setup other inputs in output_level
+  if(start_level_inputs_.empty()){
+    return nullptr;
+  }
+  Compaction* c = GetCompaction();
   return c;
 }
 
@@ -813,7 +921,6 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     // the target level size of output level. We should wait the output level compacted
     if(ioptions_.input_rate_cotroller_enabled){
       uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
-//      uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
       if((output_level_inputs.size() >
            mutable_cf_options_.max_bytes_for_level_multiplier * output_level_target_num) &&
@@ -870,12 +977,16 @@ Compaction* LevelCompactionPicker::PickCompaction(
   LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
+  builder.LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
   Compaction* c = nullptr;
   if(dl_ccv && ioptions_.input_rate_cotroller_enabled){
-    SetIsPickMLOCompaction(true);
-    c = builder.PickMLOCompaction();
+    c = builder.PickBatchTrivialMoveCompaction();
+    if(!c){
+      SetIsPickMLOCompaction(true);
+      c = builder.PickMLOCompaction();
+    }
   }
   if(!c){
     SetIsPickMLOCompaction(false);
