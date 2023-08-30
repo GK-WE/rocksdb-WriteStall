@@ -487,8 +487,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
   mid_level_inputs1_.level = mlo_compaction_levels[1];
   if(!compaction_picker_->SetupOtherInputs(
       cf_name_, mutable_cf_options_, vstorage_, &start_level_inputs_,
-      &mid_level_inputs1_, &parent_index_, base_index_) ||
-      mid_level_inputs1_.empty()){
+      &mid_level_inputs1_, &parent_index_, base_index_)){
     ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupMidLevelInputs1: "
                      "start_level: %s "
                      "mid_level1: %s "
@@ -499,15 +498,21 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
   }
   ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupMidLevelInputs1: "
                                 "start_level: %s "
+                   "start_level_input_num: %d "
                                 "mid_level1: %s "
+                                "mid_level1_input_num: %d "
                                 "result: SUCCESS ",
                                 std::to_string(start_level_inputs_.level).c_str(),
-                                std::to_string(mid_level_inputs1_.level).c_str());
+                   start_level_inputs_.size(),
+                                std::to_string(mid_level_inputs1_.level).c_str(),
+                   mid_level_inputs1_.size());
+
   size_t old_midinputs1_size = mid_level_inputs1_.size();
   if(mlo_compaction_levels.size()==4){
     mid_level_inputs2_.level = mlo_compaction_levels[2];
     if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_, &mid_level_inputs1_,
+        cf_name_, mutable_cf_options_, vstorage_,
+        (old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_,
         &mid_level_inputs2_, &parent_index_, parent_index_)){
       ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupMidLevelInputs2: "
                                     "mid_level1: %s "
@@ -521,12 +526,16 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupMidLevelInputs2: "
                                   "mid_level1: %s "
                                   "mid_level2: %s "
+                                  "mid_level2_input_num: %d "
                                   "result: SUCCESS ",
                                   std::to_string(mid_level_inputs1_.level).c_str(),
-                                  std::to_string(mid_level_inputs2_.level).c_str());
+                                  std::to_string(mid_level_inputs2_.level).c_str(),
+                                  mid_level_inputs2_.size());
     size_t old_midinputs2_size = mid_level_inputs2_.size();
     if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_, &mid_level_inputs2_,
+        cf_name_, mutable_cf_options_, vstorage_,
+        (old_midinputs2_size>0)?&mid_level_inputs2_:
+        ((old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_),
         &output_level_inputs_, &parent_index_, parent_index_)){
       ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupOutputLevelInputs: "
                                     "mid_level2: %s "
@@ -540,13 +549,16 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupOutputLevelInputs: "
                                   "mid_level2: %s "
                                   "output_level: %s "
+                     "output_level_input_num: %d "
                                   "result: SUCCESS ",
                                   std::to_string(mid_level_inputs2_.level).c_str(),
-                                  std::to_string(output_level_inputs_.level).c_str());
+                                  std::to_string(output_level_inputs_.level).c_str(),
+                     output_level_inputs_.size());
 
   }else if(mlo_compaction_levels.size()==3){
     if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_, &mid_level_inputs1_,
+        cf_name_, mutable_cf_options_, vstorage_,
+            (old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_,
         &output_level_inputs_, &parent_index_, parent_index_)){
       ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupOutputLevelInputs: "
                                     "mid_level1: %s "
@@ -560,9 +572,11 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputsMLOCompaction-SetupOutputLevelInputs: "
                                   "mid_level1: %s "
                                   "output_level: %s "
+                     "output_level_input_num: %d "
                                   "result: SUCCESS ",
                                   std::to_string(mid_level_inputs1_.level).c_str(),
-                                  std::to_string(output_level_inputs_.level).c_str());
+                                  std::to_string(output_level_inputs_.level).c_str(),
+                     output_level_inputs_.size());
   }
 
   compaction_inputs_.push_back(start_level_inputs_);
@@ -603,11 +617,12 @@ Compaction* LevelCompactionBuilder::PickMLOCompaction(){
   }
 
   if(!SetupOtherInputsMLOCompaction()){
+    start_level_inputs_.clear();
+    output_level_inputs_.clear();
     return nullptr;
   }
 
   compaction_reason_ = CompactionReason::kLevelMaxLevelSize;
-
   Compaction* c = GetCompaction();
   c->SetIsMLOCompaction(true);
   c->SetMaxSubCompactions(4);
