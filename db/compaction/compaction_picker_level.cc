@@ -742,25 +742,33 @@ Compaction* LevelCompactionBuilder::PickBatchTrivialMoveCompaction() {
 Compaction* LevelCompactionBuilder::PickCompaction() {
   // Pick up the first file to start compaction. It may have been extended
   // to a clean cut.
+  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupInitialFiles - Start");
   SetupInitialFiles();
   if (start_level_inputs_.empty()) {
+    ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupInitialFiles - FAILED: "
+                     "start_level_inputs_ empty");
     return nullptr;
   }
   assert(start_level_ >= 0 && output_level_ >= 0);
 
   // If it is a L0 -> base level compaction, we need to set up other L0
   // files if needed.
+  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupOtherL0FilesIfNeeded - Start");
   if (!SetupOtherL0FilesIfNeeded()) {
+    ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupOtherL0FilesIfNeeded - FAILED");
     return nullptr;
   }
 
   // Pick files in the output level and expand more files in the start level
   // if needed.
+  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupOtherInputsIfNeeded - Start");
   if (!SetupOtherInputsIfNeeded()) {
+    ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - SetupOtherInputsIfNeeded - FAILED");
     return nullptr;
   }
 
   // Form a compaction object containing the files we picked.
+  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction - GetCompaction");
   Compaction* c = GetCompaction();
 
   TEST_SYNC_POINT_CALLBACK("LevelCompactionPicker::PickCompaction:Return", c);
@@ -977,7 +985,6 @@ Compaction* LevelCompactionPicker::PickCompaction(
   LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
-  ROCKS_LOG_BUFFER(log_buffer, "PickCompaction ALL- Start! ");
   builder.LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;

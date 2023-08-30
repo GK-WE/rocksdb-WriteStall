@@ -450,18 +450,19 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                            requests_to_wait_);
     exit_cv_.Signal();
   }
-  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-ReleaseMutex: "
-                                         "background_op: %s "
-                                         "io_pri: %s "
-                                         "bytes: %zu "
-                                         "ccv_when_req_issue: %s "
-                                         "cushion_when_req_issue: %s ",cfd->GetName().c_str(),
-                                         BackgroundOpString(background_op).c_str(),
-                                         BackgroundOpPriorityString(io_pri).c_str(),
-                                         bytes,
-                                         CCVConditionString(ccv_cur).c_str(),
-                                         CushionString(cushion).c_str());
-
+  if(need_debug_info_){
+    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-ReleaseMutex: "
+                                           "background_op: %s "
+                                           "io_pri: %s "
+                                           "bytes: %zu "
+                                           "ccv_when_req_issue: %s "
+                                           "cushion_when_req_issue: %s ",cfd->GetName().c_str(),
+                                           BackgroundOpString(background_op).c_str(),
+                                           BackgroundOpPriorityString(io_pri).c_str(),
+                                           bytes,
+                                           CCVConditionString(ccv_cur).c_str(),
+                                           CushionString(cushion).c_str());
+  }
 }
 
 void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
