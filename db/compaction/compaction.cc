@@ -584,7 +584,8 @@ bool Compaction::IsOutputLevelEmpty() const {
 }
 
 bool Compaction::ShouldFormSubcompactions() const {
-  if(is_manual_compaction_ && cfd_->ioptions()->input_rate_cotroller_enabled){
+  if((is_mlo_compaction_ || start_level_==0)
+      && cfd_->ioptions()->input_rate_cotroller_enabled){
     return true;
   }
 

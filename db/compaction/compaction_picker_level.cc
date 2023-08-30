@@ -980,17 +980,25 @@ Compaction* LevelCompactionPicker::PickCompaction(
   builder.LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
+  bool l0_ccv = (ccv >> 1) & 1;
   Compaction* c = nullptr;
   if(dl_ccv && ioptions_.input_rate_cotroller_enabled){
+    ROCKS_LOG_BUFFER(log_buffer, "PickBatchTrivialMoveCompaction - Start! ");
     c = builder.PickBatchTrivialMoveCompaction();
     if(!c){
+      ROCKS_LOG_BUFFER(log_buffer, "PickBatchTrivialMoveCompaction - FAILED! \n"
+                                   "PickMLOCompaction - Start!");
       SetIsPickMLOCompaction(true);
       c = builder.PickMLOCompaction();
     }
   }
   if(!c){
     SetIsPickMLOCompaction(false);
+    ROCKS_LOG_BUFFER(log_buffer, "PickCompaction - Start! ");
     c = builder.PickCompaction();
+    if(!c && l0_ccv){
+      c->SetMaxSubCompactions(4);
+    }
   }
   return c;
 //  return builder.PickCompaction();
