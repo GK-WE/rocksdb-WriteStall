@@ -977,6 +977,7 @@ Compaction* LevelCompactionPicker::PickCompaction(
   LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
+  ROCKS_LOG_BUFFER(log_buffer, "PickCompaction ALL- Start! ");
   builder.LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;

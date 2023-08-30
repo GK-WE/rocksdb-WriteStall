@@ -106,6 +106,7 @@ class InputRateController{
   std::deque<Req*> low_bkop_queue_;
   bool stop_;
   std::atomic<bool> compaction_nothing_todo_when_dlcc_;
+  bool need_debug_info_;
 
 };
 extern InputRateController* NewInputRateController();
