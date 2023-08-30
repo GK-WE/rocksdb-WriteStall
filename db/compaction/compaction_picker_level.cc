@@ -72,15 +72,15 @@ class LevelCompactionBuilder {
   Compaction* PickMLOCompaction();
 
   //Pick and return files at a level that can trivial move to next level
-  Compaction* PickBatchTrivialMoveCompaction();
+//  Compaction* PickBatchTrivialMoveCompaction();
 
   bool SetupLevelsMLOCompaction();
 
   void SetupInitialFilesMLOCompaction();
 
-  void SetupInitialFilesTrivialMoveCompaction();
+//  void SetupInitialFilesTrivialMoveCompaction();
 
-  bool PickStartLevelFilesTrivialMoveCompaction();
+//  bool PickStartLevelFilesTrivialMoveCompaction();
 
   bool SetupOtherInputsMLOCompaction();
 
@@ -142,7 +142,7 @@ class LevelCompactionBuilder {
   std::vector<CompactionInputFiles> compaction_inputs_;
   CompactionInputFiles output_level_inputs_;
   CompactionInputFiles mid_level_inputs1_;
-  CompactionInputFiles mid_level_inputs2_;
+//  CompactionInputFiles mid_level_inputs2_;
   std::vector<FileMetaData*> grandparents_;
   CompactionReason compaction_reason_ = CompactionReason::kUnknown;
 
@@ -423,7 +423,7 @@ bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
 
 void LevelCompactionBuilder::SetupInitialFilesMLOCompaction() {
   assert(start_level_>0);
-  ROCKS_LOG_BUFFER(log_buffer_, "SetupInitialFiles MLOCompaction -Start! ");
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupInitialFiles MLOCompaction - Start! ");
   //select files from start_level_
   start_level_inputs_.clear();
   const std::vector<int>& file_size =
@@ -486,113 +486,73 @@ void LevelCompactionBuilder::SetupInitialFilesMLOCompaction() {
     break;
   }
   vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
-  ROCKS_LOG_BUFFER(log_buffer_, "SetupInitialFiles MLOCompaction -Finish! ");
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupInitialFiles MLOCompaction - Finish! ");
 }
 
 bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
-  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -Start! ");
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - Start! ");
   mid_level_inputs1_.level = mlo_compaction_levels[1];
   if(!compaction_picker_->SetupOtherInputs(
       cf_name_, mutable_cf_options_, vstorage_, &start_level_inputs_,
-      &mid_level_inputs1_, &parent_index_, base_index_)){
-    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupMidLevelInputs1: "
-                     "start_level: %s "
-                     "mid_level1: %s "
+      &mid_level_inputs1_, &parent_index_, base_index_) || mid_level_inputs1_.empty()){
+    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - SetupMidLevelInputs1: "
+                     "start_level[level,num]: [%d , %d] "
+                     "mid_level1[level,num]: [%d , %d] "
                      "result: FAILED ",
-                     std::to_string(start_level_inputs_.level).c_str(),
-                     std::to_string(mid_level_inputs1_.level).c_str());
+                     start_level_inputs_.level,
+                     start_level_inputs_.size(),
+                     mid_level_inputs1_.level,
+                     mid_level_inputs1_.size());
     return false;
   }
-  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupMidLevelInputs1: "
-                                "start_level: %s "
-                   "start_level_input_num: %d "
-                                "mid_level1: %s "
-                                "mid_level1_input_num: %d "
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - SetupMidLevelInputs1: "
+                                "start_level[level,num]: [%d , %d] "
+                                "mid_level1[level,num]: [%d , %d] "
                                 "result: SUCCESS ",
-                                std::to_string(start_level_inputs_.level).c_str(),
-                   start_level_inputs_.size(),
-                                std::to_string(mid_level_inputs1_.level).c_str(),
-                   mid_level_inputs1_.size());
+                                start_level_inputs_.level,
+                                start_level_inputs_.size(),
+                                mid_level_inputs1_.level,
+                                mid_level_inputs1_.size());
 
   size_t old_midinputs1_size = mid_level_inputs1_.size();
-  if(mlo_compaction_levels.size()==4){
-    mid_level_inputs2_.level = mlo_compaction_levels[2];
-    if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_,
-        (old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_,
-        &mid_level_inputs2_, &parent_index_, parent_index_)){
-      ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupMidLevelInputs2: "
-                                    "mid_level1: %s "
-                                    "mid_level2: %s "
-                                    "result: FAILED ",
-                                    std::to_string(mid_level_inputs1_.level).c_str(),
-                                    std::to_string(mid_level_inputs2_.level).c_str());
-      return false;
-    }
-    assert(old_midinputs1_size == mid_level_inputs1_.size());
-    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupMidLevelInputs2: "
-                                  "mid_level1: %s "
-                                  "mid_level2: %s "
-                                  "mid_level2_input_num: %d "
-                                  "result: SUCCESS ",
-                                  std::to_string(mid_level_inputs1_.level).c_str(),
-                                  std::to_string(mid_level_inputs2_.level).c_str(),
-                                  mid_level_inputs2_.size());
-    output_level_inputs_.level = mlo_compaction_levels[3];
-    size_t old_midinputs2_size = mid_level_inputs2_.size();
-    if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_,
-        (old_midinputs2_size>0)?&mid_level_inputs2_:
-        ((old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_),
-        &output_level_inputs_, &parent_index_, parent_index_)){
-      ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupOutputLevelInputs: "
-                                    "mid_level2: %s "
-                                    "output_level: %s "
-                                    "result: FAILED ",
-                                    std::to_string(mid_level_inputs2_.level).c_str(),
-                                    std::to_string(output_level_inputs_.level).c_str());
-      return false;
-    }
-    assert(old_midinputs2_size == mid_level_inputs2_.size());
-    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupOutputLevelInputs: "
-                                  "mid_level2: %s "
-                                  "output_level: %s "
-                     "output_level_input_num: %d "
-                                  "result: SUCCESS ",
-                                  std::to_string(mid_level_inputs2_.level).c_str(),
-                                  std::to_string(output_level_inputs_.level).c_str(),
-                     output_level_inputs_.size());
+  output_level_inputs_.level = mlo_compaction_levels[2];
+  if(!compaction_picker_->SetupOtherInputs(
+      cf_name_, mutable_cf_options_, vstorage_,
+      &mid_level_inputs1_,
+      &output_level_inputs_, &parent_index_, parent_index_)){
+    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - SetupOutputLevelInputs: "
+                                  "mid_level[level,num]: [%d , %d] "
+                                  "output_level1[level,num]: [%d , %d] "
+                                  "result: FAILED ",
+                                  mid_level_inputs1_.level,
+                                  mid_level_inputs1_.size(),
+                                  output_level_inputs_.level,
+                                  output_level_inputs_.size());
+    return false;
+  }
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - SetupOutputLevelInputs: "
+                                "mid_level[level,num]: [%d , %d] "
+                                "output_level1[level,num]: [%d , %d] "
+                                "result: SUCCESS ",
+                                mid_level_inputs1_.level,
+                                mid_level_inputs1_.size(),
+                                output_level_inputs_.level,
+                                output_level_inputs_.size());
 
-  }else if(mlo_compaction_levels.size()==3){
-    output_level_inputs_.level = mlo_compaction_levels[2];
-    if(!compaction_picker_->SetupOtherInputs(
-        cf_name_, mutable_cf_options_, vstorage_,
-            (old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_,
-        &output_level_inputs_, &parent_index_, parent_index_)){
-      ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupOutputLevelInputs: "
-                                    "mid_level1: %s "
-                                    "output_level: %s "
-                                    "result: FAILED ",
-                                    std::to_string(mid_level_inputs1_.level).c_str(),
-                                    std::to_string(output_level_inputs_.level).c_str());
-      return false;
-    }
-    assert(old_midinputs1_size == mid_level_inputs1_.size());
-    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -SetupOutputLevelInputs: "
-                                  "mid_level1: %s "
-                                  "output_level: %s "
-                     "output_level_input_num: %d "
-                                  "result: SUCCESS ",
-                                  std::to_string(mid_level_inputs1_.level).c_str(),
-                                  std::to_string(output_level_inputs_.level).c_str(),
-                     output_level_inputs_.size());
+  if(old_midinputs1_size != mid_level_inputs1_.size()){
+    ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - SetupOutputLevelInputs: "
+                                  "mid_level[level,num]: [%d , %d] "
+                                  "output_level1[level,num]: [%d , %d] "
+                                  "result: ADD_FILES_MID-LEVEL-INPUTS ",
+                                  mid_level_inputs1_.level,
+                                  mid_level_inputs1_.size(),
+                                  output_level_inputs_.level,
+                                  output_level_inputs_.size());
+    return false;
   }
 
   compaction_inputs_.push_back(start_level_inputs_);
   compaction_inputs_.push_back(mid_level_inputs1_);
-  if(!mid_level_inputs2_.empty()){
-    compaction_inputs_.push_back(mid_level_inputs2_);
-  }
   if(!output_level_inputs_.empty()){
     compaction_inputs_.push_back(output_level_inputs_);
   }
@@ -601,7 +561,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     if(compaction_picker_->FilesRangeOverlapWithCompaction(
             {compaction_inputs_[i],compaction_inputs_[i+1]},
             compaction_inputs_[i+1].level)){
-      ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -CheckInputsInCompaction: "
+      ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - CheckInputsInCompaction: "
                        "level: %s "
                        "result: INCOMPACTION ",
                        std::to_string(compaction_inputs_[i+1].level).c_str());
@@ -609,7 +569,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     }
   }
 
-  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction -Finish! ");
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupOtherInputs MLOCompaction - Finish! ");
   return true;
 }
 
@@ -638,106 +598,107 @@ Compaction* LevelCompactionBuilder::PickMLOCompaction(){
   return c;
 }
 
-void LevelCompactionBuilder::SetupInitialFilesTrivialMoveCompaction() {
-  for(int i = 1; i < compaction_picker_->NumberLevels() - 1; i++) {
-    double level_score = vstorage_->CompactionLevelScore(i);
-    if(level_score>1){
-      start_level_inputs_.clear();
-      start_level_ = i;
-      if(PickStartLevelFilesTrivialMoveCompaction()){
-        output_level_ = i+1;
-        output_level_inputs_.level = output_level_;
-        break;
-      }
-    }
-  }
-}
+//void LevelCompactionBuilder::SetupInitialFilesTrivialMoveCompaction() {
+//  for(int i = 1; i < compaction_picker_->NumberLevels() - 1; i++) {
+//    double level_score = vstorage_->CompactionLevelScore(i);
+//    if(level_score>1){
+//      start_level_inputs_.clear();
+//      start_level_ = i;
+//      if(PickStartLevelFilesTrivialMoveCompaction()){
+//        output_level_ = i+1;
+//        output_level_inputs_.level = output_level_;
+//        break;
+//      }
+//    }
+//  }
+//}
 
-bool LevelCompactionBuilder::PickStartLevelFilesTrivialMoveCompaction() {
-  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction -Start! ");
-  assert(start_level_ > 0);
-  const std::vector<int>& file_size =
-      vstorage_->FilesByCompactionPri(start_level_);
-  const std::vector<FileMetaData*>& level_files =
-      vstorage_->LevelFiles(start_level_);
-  unsigned int cmp_idx;
-  for (cmp_idx = vstorage_->NextCompactionIndex(start_level_);
-  cmp_idx < file_size.size(); cmp_idx++) {
-    int index = file_size[cmp_idx];
-    auto* f = level_files[index];
-    if (f->being_compacted) {
-      continue;
-    }
+//bool LevelCompactionBuilder::PickStartLevelFilesTrivialMoveCompaction() {
+//  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction -Start! ");
+//  log_buffer_->FlushBufferToLog();
+//  assert(start_level_ > 0);
+//  const std::vector<int>& file_size =
+//      vstorage_->FilesByCompactionPri(start_level_);
+//  const std::vector<FileMetaData*>& level_files =
+//      vstorage_->LevelFiles(start_level_);
+//  unsigned int cmp_idx;
+//  for (cmp_idx = vstorage_->NextCompactionIndex(start_level_);
+//  cmp_idx < file_size.size(); cmp_idx++) {
+//    int index = file_size[cmp_idx];
+//    auto* f = level_files[index];
+//    if (f->being_compacted) {
+//      continue;
+//    }
+//
+//    start_level_inputs_.files.push_back(f);
+//    start_level_inputs_.level = start_level_;
+//    size_t old_start_level_input_num = start_level_inputs_.size();
+//    if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
+//                                                    &start_level_inputs_) ||
+//                                                    compaction_picker_->FilesRangeOverlapWithCompaction(
+//                                                        {start_level_inputs_}, output_level_)) {
+//      size_t new_start_level_input_num = start_level_inputs_.size();
+//      if(old_start_level_input_num == new_start_level_input_num){
+//          start_level_inputs_.files.pop_back();
+//      }else{
+//        assert(new_start_level_input_num >  old_start_level_input_num);
+//        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
+//        while(exceed--){
+//          start_level_inputs_.files.pop_back();
+//        }
+//      }
+//      continue;
+//    }
+//
+//    InternalKey smallest, largest;
+//    compaction_picker_->GetRange(start_level_inputs_, &smallest, &largest);
+//    CompactionInputFiles output_level_inputs;
+//    output_level_inputs.level = start_level_+1;
+//    vstorage_->GetOverlappingInputs(start_level_+1, &smallest, &largest,
+//                                    &output_level_inputs.files);
+//    if (!output_level_inputs.empty() &&
+//        ioptions_.compaction_pri == kMinOverlappingRatio) {
+//      // only pick files in start_level_ can do trivial move
+//      // if files is updated in the order of kMinOverlappingRatio
+//      // the following files won't satisfy trivial move
+//      size_t new_start_level_input_num = start_level_inputs_.size();
+//      if(old_start_level_input_num == new_start_level_input_num){
+//        start_level_inputs_.files.pop_back();
+//      }else{
+//        assert(new_start_level_input_num >  old_start_level_input_num);
+//        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
+//        while(exceed--){
+//          start_level_inputs_.files.pop_back();
+//        }
+//      }
+//      break;
+//    }
+//    base_index_ = index;
+//  }
+//  if(start_level_inputs_.empty()){
+//    ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - FAILED! "
+//                                  "start_level: %d "
+//                                  "start_level_input_num: %d ",
+//                                  start_level_, start_level_inputs_.size());
+//    return false;
+//  }
+//  vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
+//  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - Finish! "
+//                   "start_level: %d "
+//                   "start_level_input_num: %d ",
+//                   start_level_, start_level_inputs_.size());
+//  return true;
+//}
 
-    start_level_inputs_.files.push_back(f);
-    start_level_inputs_.level = start_level_;
-    size_t old_start_level_input_num = start_level_inputs_.size();
-    if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
-                                                    &start_level_inputs_) ||
-                                                    compaction_picker_->FilesRangeOverlapWithCompaction(
-                                                        {start_level_inputs_}, output_level_)) {
-      size_t new_start_level_input_num = start_level_inputs_.size();
-      if(old_start_level_input_num == new_start_level_input_num){
-          start_level_inputs_.files.pop_back();
-      }else{
-        assert(new_start_level_input_num >  old_start_level_input_num);
-        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
-        while(exceed--){
-          start_level_inputs_.files.pop_back();
-        }
-      }
-      continue;
-    }
-
-    InternalKey smallest, largest;
-    compaction_picker_->GetRange(start_level_inputs_, &smallest, &largest);
-    CompactionInputFiles output_level_inputs;
-    output_level_inputs.level = start_level_+1;
-    vstorage_->GetOverlappingInputs(start_level_+1, &smallest, &largest,
-                                    &output_level_inputs.files);
-    if (!output_level_inputs.empty() &&
-        ioptions_.compaction_pri == kMinOverlappingRatio) {
-      // only pick files in start_level_ can do trivial move
-      // if files is updated in the order of kMinOverlappingRatio
-      // the following files won't satisfy trivial move
-      size_t new_start_level_input_num = start_level_inputs_.size();
-      if(old_start_level_input_num == new_start_level_input_num){
-        start_level_inputs_.files.pop_back();
-      }else{
-        assert(new_start_level_input_num >  old_start_level_input_num);
-        size_t exceed = new_start_level_input_num - old_start_level_input_num + 1;
-        while(exceed--){
-          start_level_inputs_.files.pop_back();
-        }
-      }
-      break;
-    }
-    base_index_ = index;
-  }
-  if(start_level_inputs_.empty()){
-    ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - FAILED! "
-                                  "start_level: %d "
-                                  "start_level_input_num: %d ",
-                                  start_level_, start_level_inputs_.size());
-    return false;
-  }
-  vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
-  ROCKS_LOG_BUFFER(log_buffer_, "PickStartLevelFiles TrivialMoveCompaction - Finish! "
-                   "start_level: %d "
-                   "start_level_input_num: %d ",
-                   start_level_, start_level_inputs_.size());
-  return true;
-}
-
-Compaction* LevelCompactionBuilder::PickBatchTrivialMoveCompaction() {
-  SetupInitialFilesTrivialMoveCompaction();
-  //no need to setup other inputs in output_level
-  if(start_level_inputs_.empty()){
-    return nullptr;
-  }
-  Compaction* c = GetCompaction();
-  return c;
-}
+//Compaction* LevelCompactionBuilder::PickBatchTrivialMoveCompaction() {
+//  SetupInitialFilesTrivialMoveCompaction();
+//  //no need to setup other inputs in output_level
+//  if(start_level_inputs_.empty()){
+//    return nullptr;
+//  }
+//  Compaction* c = GetCompaction();
+//  return c;
+//}
 
 Compaction* LevelCompactionBuilder::PickCompaction() {
   // Pick up the first file to start compaction. It may have been extended
@@ -991,14 +952,10 @@ Compaction* LevelCompactionPicker::PickCompaction(
   bool l0_ccv = (ccv >> 1) & 1;
   Compaction* c = nullptr;
   if(dl_ccv && ioptions_.input_rate_cotroller_enabled){
-    ROCKS_LOG_BUFFER(log_buffer, "PickBatchTrivialMoveCompaction - Start! ");
-    c = builder.PickBatchTrivialMoveCompaction();
-    if(!c){
-      ROCKS_LOG_BUFFER(log_buffer, "PickBatchTrivialMoveCompaction - FAILED! \n"
-                                   "PickMLOCompaction - Start!");
-      SetIsPickMLOCompaction(true);
-      c = builder.PickMLOCompaction();
-    }
+    ROCKS_LOG_BUFFER(log_buffer, "PickMLOCompaction - Start!");
+    log_buffer->FlushBufferToLog();
+    SetIsPickMLOCompaction(true);
+    c = builder.PickMLOCompaction();
   }
   if(!c){
     SetIsPickMLOCompaction(false);
