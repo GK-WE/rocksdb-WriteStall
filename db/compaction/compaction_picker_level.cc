@@ -399,7 +399,7 @@ bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
     start_level_ = mlo_compaction_levels.front();
     output_level_ = mlo_compaction_levels.back();
   }else{
-    ROCKS_LOG_BUFFER(log_buffer_, "MLO_CMP isn't satisfied! ");
+    ROCKS_LOG_BUFFER(log_buffer_, "SetupLevels MLOCompaction - Less than 2 levels needed compaction! Not Satisfied! ");
     return false;
   }
 
@@ -409,7 +409,7 @@ bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
     mlo_levels += std::to_string(l);
   }
   mlo_levels += " ]";
-  ROCKS_LOG_BUFFER(log_buffer_, "MLO_CMP select levels: %s ", mlo_levels.c_str());
+  ROCKS_LOG_BUFFER(log_buffer_, "SetupLevels MLOCompaction - Selected levels: %s ", mlo_levels.c_str());
 
   return true;
 }
@@ -531,6 +531,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
                                   std::to_string(mid_level_inputs1_.level).c_str(),
                                   std::to_string(mid_level_inputs2_.level).c_str(),
                                   mid_level_inputs2_.size());
+    output_level_inputs_.level = mlo_compaction_levels[3];
     size_t old_midinputs2_size = mid_level_inputs2_.size();
     if(!compaction_picker_->SetupOtherInputs(
         cf_name_, mutable_cf_options_, vstorage_,
@@ -556,6 +557,7 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
                      output_level_inputs_.size());
 
   }else if(mlo_compaction_levels.size()==3){
+    output_level_inputs_.level = mlo_compaction_levels[2];
     if(!compaction_picker_->SetupOtherInputs(
         cf_name_, mutable_cf_options_, vstorage_,
             (old_midinputs1_size>0)?&mid_level_inputs1_:&start_level_inputs_,
