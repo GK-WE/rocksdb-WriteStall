@@ -482,9 +482,9 @@ void InputRateController::ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp b
 //                                           r,
 //                                           BackgroundOpString(r->background_op).c_str());
   }
-//  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken-ReleaseMutex: "
-//                 "background_op: %s io_pri: HIGH", cfd->GetName().c_str(),
-//                 BackgroundOpString(background_op).c_str());
+  ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] ReturnToken-ReleaseMutex: "
+                 "background_op: %s io_pri: HIGH", cfd->GetName().c_str(),
+                 BackgroundOpString(background_op).c_str());
 }
 
 void InputRateController::SignalLowOpShouldBeHighOpNow(ColumnFamilyData* cfd, Env::BackgroundOp background_op) {
@@ -528,6 +528,15 @@ void InputRateController::SignalLowOpShouldBeHighOpNow(ColumnFamilyData* cfd, En
 //                                           r,
 //                                           BackgroundOpString(r->background_op).c_str());
   }
+
+      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-LOWop: "
+                                             "background_op: %s "
+                                             "io_pri: HIGH "
+                                             "sum: %d "
+                                             "signal_reason: TSREASON_CCV_CHANGE ", cfd->GetName().c_str(),
+                                             BackgroundOpString(background_op).c_str(),
+                                             sum);
+
 }
 
 void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
@@ -542,11 +551,11 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
       }
     }
 
-    int sum = queue.size();
+//    int sum = queue.size();
     int cnt = 0;
     while(!queue.empty()){
       cnt++;
-      auto r = queue.front();
+//      auto r = queue.front();
       queue.front()->signaled_reason = TSREASON_NOCMP_DLCC;
       queue.front()->signaled_by_op = Env::BK_TOTAL;
 //      ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-StartSignal-STOPop: "
@@ -570,8 +579,10 @@ void InputRateController::SignalStopOpWhenNoCmpButDLCC(ColumnFamilyData* cfd) {
 //                                             r,
 //                                             BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
-
   }
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DBImplCmp-FinishSignal-STOPop: "
+                                               "signal_reason: TSREASON_NOCMP_DLCC ", cfd->GetName().c_str());
+
 }
 
 void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::BackgroundOp except_op, Env::BackgroundOp cur_op, BackgroundOp_Priority io_pri) {
@@ -620,8 +631,13 @@ void InputRateController::SignalStopOpExcept(ColumnFamilyData* cfd, Env::Backgro
 //                                             r,
 //                                             BackgroundOpString((Env::BackgroundOp)i).c_str());
     }
-
   }
+        ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishSignal-STOPop: "
+                                               "background_op: %s "
+                                               "io_pri: %s "
+                 "signal_reason: TSREASON_CCV_CHANGE ", cfd->GetName().c_str(),
+                                               BackgroundOpString(cur_op).c_str(),
+                                               BackgroundOpPriorityString(io_pri).c_str());
 }
 
 void InputRateController::SetCmpNoWhenDLCC(bool nocmp) {
