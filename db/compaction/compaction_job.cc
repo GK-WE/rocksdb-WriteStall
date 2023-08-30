@@ -533,7 +533,7 @@ void CompactionJob::Prepare() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PREPARE);
 
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Start!");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Start job_id: %d", job_id_);
 
   // Generate file_levels_ for compaction before making Iterator
   auto* c = compact_->compaction;
@@ -547,10 +547,10 @@ void CompactionJob::Prepare() {
 
   if (c->ShouldFormSubcompactions()) {
     {
-      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare ShouldFormSubcompactions!");
+      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare ShouldFormSubcompactions job_id: %d", job_id_);
       StopWatch sw(db_options_.clock, stats_, SUBCOMPACTION_SETUP_TIME);
       GenSubcompactionBoundaries();
-      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare GenSubcompactionBoundaries!");
+      ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare GenSubcompactionBoundaries job_id: %d", job_id_);
     }
     assert(sizes_.size() == boundaries_.size() + 1);
 
@@ -570,7 +570,7 @@ void CompactionJob::Prepare() {
     compact_->sub_compact_states.emplace_back(c, start, end, size,
                                               /*sub_job_id*/ 0);
   }
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Finish!");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Prepare Finish job_id: %d", job_id_);
 }
 
 struct RangeWithSize {
@@ -715,7 +715,7 @@ Status CompactionJob::Run() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_RUN);
   TEST_SYNC_POINT("CompactionJob::Run():Start");
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Start");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Start job_id: %d", job_id_);
   log_buffer_->FlushBufferToLog();
   LogCompaction();
 
@@ -726,23 +726,25 @@ Status CompactionJob::Run() {
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run ThreadsPool Ready");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run ThreadsPool Ready job_id: %d", job_id_);
   for (size_t i = 1; i < compact_->sub_compact_states.size(); i++) {
     thread_pool.emplace_back(&CompactionJob::ProcessKeyValueCompaction, this,
                              &compact_->sub_compact_states[i]);
   }
 
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Start");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Start job_id: %d", job_id_);
   // Always schedule the first subcompaction (whether or not there are also
   // others) in the current thread to be efficient with resources
   ProcessKeyValueCompaction(&compact_->sub_compact_states[0]);
 
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Finish");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Main Thread ProcessKeyValueCompaction Finish job_id: %d", job_id_);
 
   // Wait for all other threads (if there are any) to finish execution
   for (auto& thread : thread_pool) {
     thread.join();
   }
+
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run All Threads Joined job_id: %d", job_id_);
 
   compaction_stats_.micros = db_options_.clock->NowMicros() - start_micros;
   compaction_stats_.cpu_micros = 0;
@@ -903,14 +905,14 @@ Status CompactionJob::Run() {
   TEST_SYNC_POINT("CompactionJob::Run():End");
 
   compact_->status = status;
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Finish");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Run Finish job_id: %d", job_id_);
   return status;
 }
 
 Status CompactionJob::Install(const MutableCFOptions& mutable_cf_options) {
   assert(compact_);
 
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Start");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Start job_id: %d", job_id_);
 
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_INSTALL);
@@ -1046,7 +1048,7 @@ Status CompactionJob::Install(const MutableCFOptions& mutable_cf_options) {
   }
 
   CleanupCompaction();
-  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Finish");
+  ROCKS_LOG_BUFFER(log_buffer_, "CompactionJob::Install Finish job_id: %d", job_id_);
   return status;
 }
 
