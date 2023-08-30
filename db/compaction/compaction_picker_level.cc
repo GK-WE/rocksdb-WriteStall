@@ -1004,7 +1004,7 @@ Compaction* LevelCompactionPicker::PickCompaction(
     SetIsPickMLOCompaction(false);
     ROCKS_LOG_BUFFER(log_buffer, "PickCompaction - Start! ");
     c = builder.PickCompaction();
-    if(!c && l0_ccv){
+    if(c && l0_ccv){
       c->SetMaxSubCompactions(4);
     }
   }
