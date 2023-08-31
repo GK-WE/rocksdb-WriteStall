@@ -523,10 +523,6 @@ class VersionStorageInfo {
     return estimated_compaction_needed_bytes_;
   }
 
-  uint64_t estimated_compaction_needed_bytes_level0to1() const{
-    return estimated_compaction_needed_bytes_level0to1_;
-  }
-
   uint64_t estimated_compaction_needed_bytes_deeperlevel() const {
     return estimated_compaction_needed_bytes_deeperlevel_;
   }
@@ -686,7 +682,7 @@ class VersionStorageInfo {
   // target sizes.
   uint64_t estimated_compaction_needed_bytes_;
 
-  uint64_t estimated_compaction_needed_bytes_level0to1_;
+//  uint64_t estimated_compaction_needed_bytes_level0to1_;
 
   uint64_t estimated_compaction_needed_bytes_deeperlevel_;
 
