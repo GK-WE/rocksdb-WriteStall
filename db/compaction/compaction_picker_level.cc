@@ -394,11 +394,17 @@ std::string LevelCompactionBuilder::LogInputFilesInfo(CompactionInputFiles input
   return res;
 }
 
-std::string LevelCompactionBuilder::LogFilesByCompactionPri(int level, std::vector<int> files) {
+std::string LevelCompactionBuilder::LogFilesByCompactionPri(int level, std::vector<int> idx) {
   std::string res = "Files_L" + std::to_string(level) + ": [";
-  for(auto f: files){
+  std::vector<FileMetaData*> files = vstorage_->LevelFiles(level);
+  for(auto i: idx){
     res += " ";
-    res += std::to_string(f);
+    uint64_t  fnum = files[i]->fd.GetNumber();
+    if(files[i]->being_compacted){
+      res += "(" + std::to_string(fnum) + ")";
+    }else{
+      res += std::to_string(fnum);
+    }
   }
   res += " ]";
   return res;
@@ -470,7 +476,7 @@ void LevelCompactionBuilder::SetupInitialFilesMLOCompaction() {
     if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
                                                     &start_level_inputs_) ||
                                                     compaction_picker_->FilesRangeOverlapWithCompaction(
-                                                        {start_level_inputs_}, output_level_)) {
+                                                        {start_level_inputs_}, mlo_compaction_levels[1])) {
       // A locked (pending compaction) input-level file was pulled in due to
       // user-key overlap.
       start_level_inputs_.clear();
@@ -652,6 +658,9 @@ Compaction* LevelCompactionBuilder::PickMLOCompaction(){
   SetupInitialFilesMLOCompaction();
 
   if(start_level_inputs_.empty()){
+    ROCKS_LOG_BUFFER(log_buffer_,"PickMLOCompaction: action: AfterSetupInitialFilesMLOCompaction "
+                     "result: FAILED "
+                     "reason: START_LEVEL_INPUTS_EMPTY");
     return nullptr;
   }
 
