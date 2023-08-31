@@ -878,7 +878,7 @@ int GetL0ThresholdSpeedupCompaction(int level0_file_num_compaction_trigger,
 std::pair<WriteStallCondition, ColumnFamilyData::WriteStallCause>
 ColumnFamilyData::GetWriteStallConditionAndCause(
     int num_unflushed_memtables, int num_l0_files,
-    uint64_t num_compaction_needed_bytes,
+//    uint64_t num_compaction_needed_bytes,
     uint64_t num_dlcompaction_needed_bytes,
     const MutableCFOptions& mutable_cf_options,
     const ImmutableCFOptions& immutable_cf_options) {
@@ -933,7 +933,7 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
 
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
         imm()->NumNotFlushed(), vstorage->l0_delay_trigger_count(),
-        vstorage->estimated_compaction_needed_bytes(),
+//        vstorage->estimated_compaction_needed_bytes(),
         vstorage->estimated_compaction_needed_bytes_deeperlevel(),
         mutable_cf_options, *ioptions());
     write_stall_condition = write_stall_condition_and_cause.first;
