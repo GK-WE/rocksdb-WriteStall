@@ -381,6 +381,10 @@ Compaction* LevelCompactionBuilder::PickCompaction() {
   // Form a compaction object containing the files we picked.
   Compaction* c = GetCompaction();
 
+  if(ioptions_.input_rate_cotroller_enabled){
+    c->SetMaxSubcompaction(4);
+  }
+
   TEST_SYNC_POINT_CALLBACK("LevelCompactionPicker::PickCompaction:Return", c);
 
   return c;
@@ -535,25 +539,30 @@ bool LevelCompactionBuilder::PickFileToCompact() {
       start_level_inputs_.clear();
       continue;
     }
+
     //if the total size of output level files involved in compaction is greater than
     // the target level size of output level. We should wait the output level compacted
-    if(ioptions_.input_rate_cotroller_enabled){
+    if(ioptions_.input_rate_cotroller_enabled &&
+        mutable_cf_options_.target_file_size_multiplier == 1){
       uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
-//      uint64_t output_level_target_size = pow(mutable_cf_options_.max_bytes_for_level_multiplier,output_level_-1) * mutable_cf_options_.max_bytes_for_level_base;
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
-      if((output_level_inputs.size() >
-           mutable_cf_options_.max_bytes_for_level_multiplier * output_level_target_num) &&
-          (output_level_ == start_level_ + 1) &&
-          output_level_ == 1){
-        ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: output level is too large: "
+      size_t output_level_input_limit;
+      if(start_level_ == 0 && output_level_ == 1){
+        double multiplier = (mutable_cf_options_.write_buffer_size / mutable_cf_options_.target_file_size_base);
+        output_level_input_limit = output_level_target_num * multiplier;
+      }else{
+        output_level_input_limit = start_level_inputs_.size() * mutable_cf_options_.max_bytes_for_level_multiplier;
+      }
+      if(output_level_inputs.size() > output_level_input_limit){
+        ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: OutputLevelInputs TOO LARGE: "
                          "start_level: %d "
                          "output_level: %d "
                          "output_level_input_num: %d "
-                         "output_level_target_num: %d ",
+                         "output_level_input_limit: %d ",
                           start_level_,
                           output_level_,
                           output_level_inputs.size(),
-                          output_level_target_num);
+                          output_level_input_limit);
         start_level_inputs_.abandon_outputlevel_toolarge = true;
         start_level_inputs_.clear();
         continue;

@@ -310,6 +310,8 @@ class Compaction {
 
   uint32_t max_subcompactions() const { return max_subcompactions_; }
 
+  void SetMaxSubcompaction(uint32_t n) { max_subcompactions_ = n; }
+
   bool enable_blob_garbage_collection() const {
     return enable_blob_garbage_collection_;
   }
