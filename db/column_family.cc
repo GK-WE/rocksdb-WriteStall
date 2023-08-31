@@ -922,7 +922,9 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
     uint64_t compaction_needed_bytes =
         vstorage->estimated_compaction_needed_bytes();
 
-    ROCKS_LOG_INFO(ioptions_.logger,"[%s] RecalculateWriteStallConditions: level-0 files: %d "
+    ROCKS_LOG_INFO(ioptions_.logger,"[%s] RecalculateWriteStallConditions: "
+                                    "InputRateControllerEnabled: false "
+                                    "level-0 files: %d "
                                     "estimated pending compaction "
                                     "bytes %" PRIu64, name_.c_str(),
                                     vstorage->l0_delay_trigger_count(),
