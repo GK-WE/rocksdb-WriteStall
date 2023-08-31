@@ -1028,27 +1028,27 @@ Compaction* LevelCompactionPicker::PickCompaction(
                                  log_buffer, mutable_cf_options, ioptions_,
                                  mutable_db_options);
   builder.LogCompactionScoreInfo();
-  int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
-  bool dl_ccv = (ccv >> 2) & 1;
-  bool l0_ccv = (ccv >> 1) & 1;
-  Compaction* c = nullptr;
-  if(dl_ccv && ioptions_.input_rate_cotroller_enabled){
-    ROCKS_LOG_BUFFER(log_buffer, "PickMLOCompaction: action: START ");
-    SetIsPickMLOCompaction(true);
-    c = builder.PickMLOCompaction();
-    ROCKS_LOG_BUFFER(log_buffer, "PickMLOCompaction: result: %s ", (c)?"SUCCESS":"FAILED");
-    log_buffer->FlushBufferToLog();
-  }
-  if(!c){
-    SetIsPickMLOCompaction(false);
-    ROCKS_LOG_BUFFER(log_buffer, "PickCompaction: action: START ");
-    c = builder.PickCompaction();
-    if(c && l0_ccv){
-      c->SetMaxSubCompactions(4);
-    }
-    ROCKS_LOG_BUFFER(log_buffer, "PickCompaction: result: %s ", (c)?"SUCCESS":"FAILED");
-  }
-  return c;
-//  return builder.PickCompaction();
+//  int ccv = InputRateController::DecideCurDiskWriteStallCondition(builder.vstorage_,builder.mutable_cf_options_);
+//  bool dl_ccv = (ccv >> 2) & 1;
+//  bool l0_ccv = (ccv >> 1) & 1;
+//  Compaction* c = nullptr;
+//  if(dl_ccv && ioptions_.input_rate_cotroller_enabled){
+//    ROCKS_LOG_BUFFER(log_buffer, "PickMLOCompaction: action: START ");
+//    SetIsPickMLOCompaction(true);
+//    c = builder.PickMLOCompaction();
+//    ROCKS_LOG_BUFFER(log_buffer, "PickMLOCompaction: result: %s ", (c)?"SUCCESS":"FAILED");
+//    log_buffer->FlushBufferToLog();
+//  }
+//  if(!c){
+//    SetIsPickMLOCompaction(false);
+//    ROCKS_LOG_BUFFER(log_buffer, "PickCompaction: action: START ");
+//    c = builder.PickCompaction();
+//    if(c && l0_ccv){
+//      c->SetMaxSubCompactions(4);
+//    }
+//    ROCKS_LOG_BUFFER(log_buffer, "PickCompaction: result: %s ", (c)?"SUCCESS":"FAILED");
+//  }
+//  return c;
+  return builder.PickCompaction();
 }
 }  // namespace ROCKSDB_NAMESPACE
