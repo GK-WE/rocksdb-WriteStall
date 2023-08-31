@@ -82,9 +82,13 @@ class LevelCompactionBuilder {
 
 //  bool PickStartLevelFilesTrivialMoveCompaction();
 
+  std::string LogInputFilesInfo(CompactionInputFiles inputs);
+
   bool SetupOtherInputsMLOCompaction();
 
   void LogCompactionScoreInfo();
+
+  std::string LogFilesByCompactionPri(int level, std::vector<int> files) ;
 
   // Pick the initial files to compact to the next level. (or together
   // in Intra-L0 compactions)
@@ -380,6 +384,26 @@ bool LevelCompactionBuilder::SetupOtherInputsIfNeeded() {
   return true;
 }
 
+std::string LevelCompactionBuilder::LogInputFilesInfo(CompactionInputFiles inputs) {
+  std::string res = "Files_L" + std::to_string(inputs.level) + ": [";
+  for(auto f: inputs.files){
+    res += " ";
+    res += std::to_string(f->fd.GetNumber());
+  }
+  res += " ]";
+  return res;
+}
+
+std::string LevelCompactionBuilder::LogFilesByCompactionPri(int level, std::vector<int> files) {
+  std::string res = "Files_L" + std::to_string(level) + ": [";
+  for(auto f: files){
+    res += " ";
+    res += std::to_string(f);
+  }
+  res += " ]";
+  return res;
+}
+
 bool LevelCompactionBuilder::SetupLevelsMLOCompaction() {
   mlo_compaction_levels.clear();
   //find at least 2 consecutive levels needed compaction
@@ -475,45 +499,52 @@ void LevelCompactionBuilder::SetupInitialFilesMLOCompaction() {
 bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
   ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: SetupOtherInputs-START ");
   ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: BeforeSetupMidLevelInputs1 "
-                                "start_level: [level: %d , num: %d] ",
+                                "start_level: [level: %d , num: %d] %s ",
                                 start_level_inputs_.level,
-                                start_level_inputs_.size());
+                                start_level_inputs_.size(),
+                   LogInputFilesInfo(start_level_inputs_).c_str());
   size_t old_startlevel_inputs_num = start_level_inputs_.size();
   mid_level_inputs1_.level = mlo_compaction_levels[1];
   if(!compaction_picker_->SetupOtherInputs(
       cf_name_, mutable_cf_options_, vstorage_, &start_level_inputs_,
       &mid_level_inputs1_, &parent_index_, base_index_) || mid_level_inputs1_.empty()){
     ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupMidLevelInputs1 "
-                                  "start_level: [level: %d , num: %d] "
-                                  "mid_level1: [level: %d , num: %d] "
+                                  "start_level: [level: %d , num: %d] %s "
+                                  "mid_level1: [level: %d , num: %d] %s "
                      "result: FAILED "
                      "reason: SETUP-OTHER-INPUTS | MID-INPUT-EMPTY",
                      start_level_inputs_.level,
                      start_level_inputs_.size(),
+                     LogInputFilesInfo(start_level_inputs_).c_str(),
                      mid_level_inputs1_.level,
-                     mid_level_inputs1_.size());
+                     mid_level_inputs1_.size(),
+                     LogInputFilesInfo(mid_level_inputs1_).c_str());
     return false;
   }
 
   if(old_startlevel_inputs_num != start_level_inputs_.size()){
     ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupMidLevelInputs1 "
-                                  "start_level: [level: %d , num: %d] "
-                                  "mid_level1: [level: %d , num: %d] "
+                                  "start_level: [level: %d , num: %d] %s "
+                                  "mid_level1: [level: %d , num: %d] %s "
                                   "result: FAILED "
                                   "reason: ADD_FILES_START-LEVEL-INPUTS",
                                   start_level_inputs_.level,
                                   start_level_inputs_.size(),
+                                  LogInputFilesInfo(start_level_inputs_).c_str(),
                                   mid_level_inputs1_.level,
-                                  mid_level_inputs1_.size());
+                                  mid_level_inputs1_.size(),
+                                  LogInputFilesInfo(mid_level_inputs1_).c_str());
   }
   ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupMidLevelInputs1-BeforeSetupOutputLevelInputs "
-                                "start_level: [level: %d , num: %d] "
-                                "mid_level1: [level: %d , num: %d] "
+                                "start_level: [level: %d , num: %d] %s "
+                                "mid_level1: [level: %d , num: %d] %s "
                                 "result: SUCCESS ",
                                 start_level_inputs_.level,
                                 start_level_inputs_.size(),
+                                LogInputFilesInfo(start_level_inputs_).c_str(),
                                 mid_level_inputs1_.level,
-                                mid_level_inputs1_.size());
+                                mid_level_inputs1_.size(),
+                                LogInputFilesInfo(mid_level_inputs1_).c_str());
 
   size_t old_midinputs1_size = mid_level_inputs1_.size();
   output_level_inputs_.level = mlo_compaction_levels[2];
@@ -522,50 +553,58 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
       &mid_level_inputs1_,
       &output_level_inputs_, &parent_index_, parent_index_)){
     ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupOutputLevelInputs "
-                                  "mid_level: [level: %d , num: %d] "
-                                  "output_level1: [level: %d , num: %d] "
+                                  "mid_level: [level: %d , num: %d] %s "
+                                  "output_level1: [level: %d , num: %d] %s "
                                   "result: FAILED "
                      "reason: SETUP-OTHER-INPUTS",
                                   mid_level_inputs1_.level,
                                   mid_level_inputs1_.size(),
+                                  LogInputFilesInfo(mid_level_inputs1_).c_str(),
                                   output_level_inputs_.level,
-                                  output_level_inputs_.size());
+                                  output_level_inputs_.size(),
+                                  LogInputFilesInfo(output_level_inputs_).c_str());
     return false;
   }
 
   if(old_midinputs1_size != mid_level_inputs1_.size()){
     ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupOutputLevelInputs "
-                                  "mid_level: [level: %d , num: %d] "
-                                  "output_level1: [level: %d , num: %d] "
+                                  "mid_level: [level: %d , num: %d] %s "
+                                  "output_level1: [level: %d , num: %d] %s "
                      "result: FAILED "
                      "reason: ADD_FILES_MID-LEVEL-INPUTS ",
-                                  mid_level_inputs1_.level,
-                                  mid_level_inputs1_.size(),
-                                  output_level_inputs_.level,
-                                  output_level_inputs_.size());
+                     mid_level_inputs1_.level,
+                     mid_level_inputs1_.size(),
+                     LogInputFilesInfo(mid_level_inputs1_).c_str(),
+                     output_level_inputs_.level,
+                     output_level_inputs_.size(),
+                     LogInputFilesInfo(output_level_inputs_).c_str());
     return false;
   }else if(output_level_inputs_.size() >=
              (start_level_inputs_.size()+mid_level_inputs1_.size())*3){
     ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupOutputLevelInputs "
-                                  "mid_level: [level: %d , num: %d] "
-                                  "output_level1: [level: %d , num: %d] "
+                                  "mid_level: [level: %d , num: %d] %s "
+                                  "output_level1: [level: %d , num: %d] %s "
                                   "result: FAILED "
                                   "reason: OUTPUT_LEVEL_TOOLARGE ",
                                   mid_level_inputs1_.level,
                                   mid_level_inputs1_.size(),
+                                  LogInputFilesInfo(mid_level_inputs1_).c_str(),
                                   output_level_inputs_.level,
-                                  output_level_inputs_.size());
+                                  output_level_inputs_.size(),
+                                  LogInputFilesInfo(output_level_inputs_).c_str());
     return false;
   }
 
   ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: AfterSetupOutputLevelInputs "
-                                "mid_level: [level: %d , num: %d] "
-                                "output_level1: [level: %d , num: %d] "
+                                "mid_level: [level: %d , num: %d] %s "
+                                "output_level1: [level: %d , num: %d] %s "
                                 "result: SUCCESS ",
                                 mid_level_inputs1_.level,
                                 mid_level_inputs1_.size(),
+                                LogInputFilesInfo(mid_level_inputs1_).c_str(),
                                 output_level_inputs_.level,
-                                output_level_inputs_.size());
+                                output_level_inputs_.size(),
+                                LogInputFilesInfo(output_level_inputs_).c_str());
 
   compaction_inputs_.push_back(start_level_inputs_);
   compaction_inputs_.push_back(mid_level_inputs1_);
@@ -587,7 +626,20 @@ bool LevelCompactionBuilder::SetupOtherInputsMLOCompaction() {
     }
   }
 
-  ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: SetupOtherInputs-FINISH ");
+  ROCKS_LOG_BUFFER(log_buffer_, "PickMLOCompaction: action: SetupOtherInputs-FINISH "
+                                "start_level: [level: %d , num: %d] %s "
+                                "mid_level: [level: %d , num: %d] %s "
+                                "output_level1: [level: %d , num: %d] %s "
+                                "result: SUCCESS ",
+                                start_level_inputs_.level,
+                                start_level_inputs_.size(),
+                                LogInputFilesInfo(start_level_inputs_).c_str(),
+                                mid_level_inputs1_.level,
+                                mid_level_inputs1_.size(),
+                                LogInputFilesInfo(mid_level_inputs1_).c_str(),
+                                output_level_inputs_.level,
+                                output_level_inputs_.size(),
+                                LogInputFilesInfo(output_level_inputs_).c_str());
   return true;
 }
 
@@ -926,6 +978,16 @@ bool LevelCompactionBuilder::PickFileToCompact() {
 
   // store where to start the iteration in the next call to PickCompaction
   vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
+
+  if(start_level_inputs_.size() > 0 && start_level_==2){
+    std::string pri = LogFilesByCompactionPri(start_level_,file_size);
+    std::string picked = LogInputFilesInfo(start_level_inputs_);
+    ROCKS_LOG_BUFFER(log_buffer_, "PickCompaction: "
+                                  "PickedFiles: %s "
+                     "FilesByCompactionPri: %s ",
+                     picked.c_str(),
+                     pri.c_str());
+  }
 
   return start_level_inputs_.size() > 0;
 }
