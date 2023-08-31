@@ -70,6 +70,8 @@ class LevelCompactionBuilder {
 
   void LogCompactionScoreInfo();
 
+  void LogCompaction();
+
   // Pick the initial files to compact to the next level. (or together
   // in Intra-L0 compactions)
   void SetupInitialFiles();
@@ -137,6 +139,46 @@ class LevelCompactionBuilder {
 
   static const int kMinFilesForIntraL0Compaction = 4;
 };
+
+void LevelCompactionBuilder::LogCompaction() {
+  std::string start_level_input_info = "files_L" + std::to_string(start_level_) + " [";
+  std::string output_level_input_info = "files_L" + std::to_string(output_level_) + " [";
+  std::string output_level_files_cmp_pri = "files_L" + std::to_string(output_level_) + "-MinOverlapOrder" + " [";
+
+  for(size_t i = 0; i < start_level_inputs_.files.size(); i++){
+    start_level_input_info += " ";
+    start_level_input_info += std::to_string(start_level_inputs_.files[i]->fd.GetNumber());
+  }
+  start_level_input_info += " ]";
+
+  std::vector<int> output_level_inputs_fnum;
+  for(size_t i = 0; i < output_level_inputs_.files.size(); i++){
+    output_level_input_info += " ";
+    output_level_input_info += std::to_string(output_level_inputs_.files[i]->fd.GetNumber());
+    output_level_inputs_fnum.push_back(output_level_inputs_.files[i]->fd.GetNumber());
+  }
+  output_level_input_info += " ]";
+
+  std::vector<int> output_level_files_by_cmp_pri = vstorage_->FilesByCompactionPri(output_level_);
+  for(size_t i = 0; i < output_level_files_by_cmp_pri.size(); i++){
+    output_level_files_cmp_pri += " ";
+    uint64_t fnum = output_level_files_by_cmp_pri[i];
+    if(std::find(output_level_files_cmp_pri.begin(),output_level_files_cmp_pri.end(),fnum)
+        !=output_level_files_cmp_pri.end()){
+      output_level_files_cmp_pri += "(" + std::to_string(fnum) + ")";
+    }else{
+      output_level_files_cmp_pri += std::to_string(fnum);
+    }
+  }
+  output_level_files_cmp_pri += " ]";
+
+  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction: PickedFiles: "
+                   "%s %s %s ",
+                   start_level_input_info.c_str(),
+                   output_level_input_info.c_str(),
+                   output_level_files_cmp_pri.c_str());
+  log_buffer_->FlushBufferToLog();
+}
 
 void LevelCompactionBuilder::LogCompactionScoreInfo() {
   std::string compaction_score = "[";
@@ -380,6 +422,8 @@ Compaction* LevelCompactionBuilder::PickCompaction() {
 
   // Form a compaction object containing the files we picked.
   Compaction* c = GetCompaction();
+
+  LogCompaction();
 
   if(ioptions_.input_rate_cotroller_enabled){
     c->SetMaxSubcompaction(4);
