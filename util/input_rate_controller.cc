@@ -10,6 +10,7 @@
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
 const int64_t low_dlcmp_max_wait_us = 200000; // 4/10 sec
+//const double estimated_pending_dlcompaction_limit = (1/2);
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op,
                int _blocked_reason, ThreadSignaledReason _signaled_reason, Env::BackgroundOp _signaled_by_op)
@@ -72,8 +73,12 @@ int InputRateController::DecideCurDiskWriteStallCondition(VersionStorageInfo* vs
 //  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
   uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
-  bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
-  bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit ));
+  bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
+//  bool DL = (estimated_compaction_needed_bytes >=
+//      (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//                 estimated_pending_dlcompaction_limit));
+  bool DL = (estimated_compaction_needed_bytes >=
+             (mutable_cf_options.soft_pending_compaction_bytes_limit));
   result = (L0 ? 2 : 0) + (DL ? 4 : 0);
   return result;
 }
@@ -90,8 +95,12 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
     uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
-    bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
-    bool DL = (estimated_compaction_needed_bytes >= (uint64_t)(mutable_cf_options.hard_pending_compaction_bytes_limit ));
+    bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
+//    bool DL = (estimated_compaction_needed_bytes >=
+//        (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//        estimated_pending_dlcompaction_limit));
+    bool DL = (estimated_compaction_needed_bytes >=
+    (mutable_cf_options.soft_pending_compaction_bytes_limit));
     result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (DL ? 4 : 0);
   }
   return result;
@@ -115,7 +124,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     assert(current!=nullptr);
     auto* vstorage = current->storage_info();
     int l0_sst_num = vstorage->l0_delay_trigger_count();
-    int l0_sst_limit = mutable_cf_options.level0_stop_writes_trigger;
+    int l0_sst_limit = mutable_cf_options.level0_slowdown_writes_trigger;
     if(l0_sst_num > (int)(l0_sst_limit*(3/4))){
       result += 1;
     }
@@ -128,7 +137,9 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     auto* vstorage = current->storage_info();
 //    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
     uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
-    uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
+//    uint64_t cmp_bytes_limit = (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//        estimated_pending_dlcompaction_limit);
+    uint64_t cmp_bytes_limit = mutable_cf_options.soft_pending_compaction_bytes_limit;
     if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(3/4))){
       result += 2;
     }
