@@ -143,7 +143,7 @@ class LevelCompactionBuilder {
 void LevelCompactionBuilder::LogCompaction() {
   std::string start_level_input_info = "files_L" + std::to_string(start_level_) + " [";
   std::string output_level_input_info = "files_L" + std::to_string(output_level_) + " [";
-  std::string output_level_files_cmp_pri = "files_L" + std::to_string(output_level_) + "-MinOverlapOrder" + " [";
+//  std::string output_level_files_cmp_pri = "files_L" + std::to_string(output_level_) + "-MinOverlapOrder" + " [";
 
   for(size_t i = 0; i < start_level_inputs_.files.size(); i++){
     start_level_input_info += " ";
@@ -159,24 +159,29 @@ void LevelCompactionBuilder::LogCompaction() {
   }
   output_level_input_info += " ]";
 
-  std::vector<int> output_level_files_by_cmp_pri = vstorage_->FilesByCompactionPri(output_level_);
-  for(size_t i = 0; i < output_level_files_by_cmp_pri.size(); i++){
-    output_level_files_cmp_pri += " ";
-    uint64_t fnum = output_level_files_by_cmp_pri[i];
-    if(std::find(output_level_files_cmp_pri.begin(),output_level_files_cmp_pri.end(),fnum)
-        !=output_level_files_cmp_pri.end()){
-      output_level_files_cmp_pri += "(" + std::to_string(fnum) + ")";
-    }else{
-      output_level_files_cmp_pri += std::to_string(fnum);
-    }
-  }
-  output_level_files_cmp_pri += " ]";
+//  std::vector<int> output_level_files_by_cmp_pri = vstorage_->FilesByCompactionPri(output_level_);
+//  for(size_t i = 0; i < output_level_files_by_cmp_pri.size(); i++){
+//    output_level_files_cmp_pri += " ";
+//    uint64_t fnum = output_level_files_by_cmp_pri[i];
+//    if(std::find(output_level_files_cmp_pri.begin(),output_level_files_cmp_pri.end(),fnum)
+//        !=output_level_files_cmp_pri.end()){
+//      output_level_files_cmp_pri += "(" + std::to_string(fnum) + ")";
+//    }else{
+//      output_level_files_cmp_pri += std::to_string(fnum);
+//    }
+//  }
+//  output_level_files_cmp_pri += " ]";
+
+//  ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction: PickedFiles: "
+//                   "%s %s %s ",
+//                   start_level_input_info.c_str(),
+//                   output_level_input_info.c_str(),
+//                   output_level_files_cmp_pri.c_str());
 
   ROCKS_LOG_BUFFER(log_buffer_,"PickCompaction: PickedFiles: "
-                   "%s %s %s ",
-                   start_level_input_info.c_str(),
-                   output_level_input_info.c_str(),
-                   output_level_files_cmp_pri.c_str());
+                               "%s %s ",
+                               start_level_input_info.c_str(),
+                               output_level_input_info.c_str());
   log_buffer_->FlushBufferToLog();
 }
 
@@ -586,18 +591,28 @@ bool LevelCompactionBuilder::PickFileToCompact() {
 
     //if the total size of output level files involved in compaction is greater than
     // the target level size of output level. We should wait the output level compacted
+    bool is_abandon = false;
     if(ioptions_.input_rate_cotroller_enabled &&
         mutable_cf_options_.target_file_size_multiplier == 1){
+      int ccv = ioptions_.input_rate_controller->DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
+      bool l0_ccv = (ccv >> 1) & 1;
+      bool dl_ccv = (ccv >> 2) & 1;
       uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
       size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
       size_t output_level_input_limit;
       if(start_level_ == 0 && output_level_ == 1){
         double multiplier = (mutable_cf_options_.write_buffer_size / mutable_cf_options_.target_file_size_base);
         output_level_input_limit = output_level_target_num * multiplier;
+        if((output_level_inputs.size() > output_level_input_limit) && !l0_ccv){
+          is_abandon = true;
+        }
       }else{
         output_level_input_limit = start_level_inputs_.size() * mutable_cf_options_.max_bytes_for_level_multiplier;
+        if((output_level_inputs.size() > output_level_input_limit) && !dl_ccv){
+          is_abandon = true;
+        }
       }
-      if(output_level_inputs.size() > output_level_input_limit){
+      if(is_abandon){
         ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: OutputLevelInputs TOO LARGE: "
                          "start_level: %d "
                          "output_level: %d "
