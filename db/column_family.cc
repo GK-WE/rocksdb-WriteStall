@@ -879,7 +879,7 @@ std::pair<WriteStallCondition, ColumnFamilyData::WriteStallCause>
 ColumnFamilyData::GetWriteStallConditionAndCause(
     int num_unflushed_memtables, int num_l0_files,
     uint64_t num_compaction_needed_bytes,
-    uint64_t num_dlcompaction_needed_bytes,
+//    uint64_t num_dlcompaction_needed_bytes,
     const MutableCFOptions& mutable_cf_options,
     const ImmutableCFOptions& immutable_cf_options) {
   if (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number) {
@@ -891,13 +891,14 @@ ColumnFamilyData::GetWriteStallConditionAndCause(
              mutable_cf_options.hard_pending_compaction_bytes_limit > 0 &&
              num_compaction_needed_bytes >=
                  mutable_cf_options.hard_pending_compaction_bytes_limit) {
-    if((immutable_cf_options.input_rate_cotroller_enabled &&
-         num_dlcompaction_needed_bytes >=
-    mutable_cf_options.hard_pending_compaction_bytes_limit)||
-    (!immutable_cf_options.input_rate_cotroller_enabled)){
-      return {WriteStallCondition::kStopped,
-              WriteStallCause::kPendingCompactionBytes};
-    }
+//    if((immutable_cf_options.input_rate_cotroller_enabled &&
+//         num_dlcompaction_needed_bytes >=
+//    mutable_cf_options.hard_pending_compaction_bytes_limit)||
+//    (!immutable_cf_options.input_rate_cotroller_enabled)){
+//      return {WriteStallCondition::kStopped,
+//              WriteStallCause::kPendingCompactionBytes};
+//    }
+    return {WriteStallCondition::kStopped,WriteStallCause::kPendingCompactionBytes};
   } else if (  !immutable_cf_options.input_rate_cotroller_enabled &&
       mutable_cf_options.max_write_buffer_number > 3 &&
              num_unflushed_memtables >=
@@ -943,7 +944,7 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
         imm()->NumNotFlushed(), vstorage->l0_delay_trigger_count(),
         vstorage->estimated_compaction_needed_bytes(),
-        vstorage->estimated_compaction_needed_bytes_deeperlevel(),
+//        vstorage->estimated_compaction_needed_bytes_deeperlevel(),
         mutable_cf_options, *ioptions());
     write_stall_condition = write_stall_condition_and_cause.first;
     auto write_stall_cause = write_stall_condition_and_cause.second;

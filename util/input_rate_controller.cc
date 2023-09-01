@@ -129,7 +129,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
 //    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
     uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
     uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
-    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(3/4))){
+    if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(1/2))){
       result += 2;
     }
   }
