@@ -934,11 +934,11 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
     ROCKS_LOG_INFO(ioptions_.logger,"[%s] RecalculateWriteStallConditions: "
                                     "InputRateControllerEnabled: %s "
                                     "level-0 files: %d "
-                                    "estimated pending dl-compaction "
+                                    "estimated pending compaction "
                                     "bytes %" PRIu64, name_.c_str(),
                                     (ioptions_.input_rate_cotroller_enabled)?"true":"false",
                                     vstorage->l0_delay_trigger_count(),
-                                    vstorage->estimated_compaction_needed_bytes_deeperlevel());
+                                    vstorage->estimated_compaction_needed_bytes());
 
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
         imm()->NumNotFlushed(), vstorage->l0_delay_trigger_count(),
