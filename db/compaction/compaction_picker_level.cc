@@ -247,6 +247,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
   LogCompactionScoreInfo();
   int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
   bool dl_ccv = (ccv >> 2) & 1;
+  bool l0_ccv = (ccv >> 1) & 1;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
@@ -266,7 +267,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if((ioptions_.input_rate_cotroller_enabled && !dl_ccv && !start_level_inputs_.abandon_outputlevel_toolarge) ||
+        if((ioptions_.input_rate_cotroller_enabled && (!dl_ccv || l0_ccv) && !start_level_inputs_.abandon_outputlevel_toolarge) ||
             (!ioptions_.input_rate_cotroller_enabled)){
           ROCKS_LOG_BUFFER(
               log_buffer_,

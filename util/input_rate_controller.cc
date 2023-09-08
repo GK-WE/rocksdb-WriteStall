@@ -10,7 +10,7 @@
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
 const int64_t low_dlcmp_max_wait_us = 200000; // 4/10 sec
-const double estimated_pending_dlcompaction_limit = (3/4);
+//const double estimated_pending_dlcompaction_limit = (3/4);
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op,
                int _blocked_reason, ThreadSignaledReason _signaled_reason, Env::BackgroundOp _signaled_by_op)
@@ -70,15 +70,15 @@ InputRateController::~InputRateController() {
 int InputRateController::DecideCurDiskWriteStallCondition(VersionStorageInfo* vstorage, const MutableCFOptions& mutable_cf_options) {
   int result = InputRateController::CCV_NORMAL;
   int num_l0_sst = vstorage->l0_delay_trigger_count();
-//  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
-  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
+  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
+//  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
   bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
-  bool DL = (estimated_compaction_needed_bytes >=
-      (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
-                 estimated_pending_dlcompaction_limit));
 //  bool DL = (estimated_compaction_needed_bytes >=
-//             (mutable_cf_options.hard_pending_compaction_bytes_limit));
+//      (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//                 estimated_pending_dlcompaction_limit));
+  bool DL = (estimated_compaction_needed_bytes >=
+             (mutable_cf_options.hard_pending_compaction_bytes_limit));
   result = (L0 ? 2 : 0) + (DL ? 4 : 0);
   return result;
 }
@@ -91,16 +91,16 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
   if(current!= nullptr){
     auto* vstorage = current->storage_info();
     int num_l0_sst = vstorage->l0_delay_trigger_count();
-//    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
-    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
+    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
+//    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
     bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
-    bool DL = (estimated_compaction_needed_bytes >=
-        (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
-        estimated_pending_dlcompaction_limit));
 //    bool DL = (estimated_compaction_needed_bytes >=
-//    (mutable_cf_options.hard_pending_compaction_bytes_limit));
+//        (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//        estimated_pending_dlcompaction_limit));
+    bool DL = (estimated_compaction_needed_bytes >=
+    (mutable_cf_options.hard_pending_compaction_bytes_limit));
     result = (MT ? 1 : 0) + (L0 ? 2 : 0) + (DL ? 4 : 0);
   }
   return result;
@@ -135,11 +135,11 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     // we should further check if it leaves room for L0-L1 cmp
     assert(current!=nullptr);
     auto* vstorage = current->storage_info();
-//    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
-    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
-    uint64_t cmp_bytes_limit = (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
-        estimated_pending_dlcompaction_limit);
-//    uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
+    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes();
+//    uint64_t cmp_bytes_needed = vstorage->estimated_compaction_needed_bytes_deeperlevel();
+//    uint64_t cmp_bytes_limit = (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
+//        estimated_pending_dlcompaction_limit);
+    uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
     if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(1/2))){
       result += 2;
     }
@@ -155,42 +155,29 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
       switch (cushion) {
         case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: ((background_op == Env::BK_L0CMP)?IO_HIGH:IO_TOTAL);
           break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW);
+          case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
           break;
-        case CUSHION_DL: io_pri = (background_op == Env::BK_L0CMP) ?
-                                                    (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) :
-                                                    ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+        case CUSHION_DL: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
           break;
-        case CUSHION_DLL0: io_pri = (background_op == Env::BK_L0CMP) ?
-                                                    (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) :
-                                                    ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_LOW);
+          case CUSHION_DLL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
           break;
         default: io_pri = IO_TOTAL;
           break;
       }
     break;
-    case CCV_MT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH: IO_LOW; // no background op stopped; Flush HIGH; other LOW
+    case CCV_MT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH: IO_LOW;
     break;
     case CCV_L0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH)?IO_STOP:IO_LOW); // Flush stopped;
     break;
-    case CCV_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH) ? IO_STOP : IO_LOW);  //Flush stopped;
+    case CCV_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: IO_LOW;
     break;
-    case CCV_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
-                                                ((background_op == Env::BK_L0CMP)?
-                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_STOP) : IO_LOW); // L0-L1 compaction stopped;
+    case CCV_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: (background_op==Env::BK_FLUSH) ? IO_STOP:IO_LOW ; // flush stopped;
     break;
-//    case CCV_DLMT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
-//                                                ((background_op == Env::BK_L0CMP)?
-//                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
-      case CCV_DLMT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH:
-                                                  ((background_op == Env::BK_L0CMP)?
-                                                  (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_LOW:IO_STOP):IO_LOW); // L0-L1 compaction stopped;
+    case CCV_DLMT: io_pri = (background_op == Env::BK_L0CMP)? IO_LOW : IO_HIGH ;
     break;
-    case CCV_DLL0: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH:
-                                                ((background_op==Env::BK_L0CMP)?
-                                                (compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)?IO_HIGH:IO_LOW):IO_STOP); // Flush stopped;
+    case CCV_DLL0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: (background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW; // Flush stopped;
     break;
-    case CCV_DLL0MT: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: IO_LOW;
+    case CCV_DLL0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: IO_LOW;
     break;
     default: io_pri = IO_TOTAL;
     break;
@@ -208,9 +195,9 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ccv,int
         break;
         case CUSHION_L0: stopped_op = Env::BK_FLUSH;
         break;
-        case CUSHION_DL: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
+        case CUSHION_DL: stopped_op = Env::BK_FLUSH;
         break;
-        case CUSHION_DLL0: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
+        case CUSHION_DLL0: stopped_op = Env::BK_FLUSH;
         break;
         default: stopped_op = Env::BK_TOTAL;
         break;
@@ -220,11 +207,11 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ccv,int
     break;
     case CCV_L0: stopped_op = Env::BK_FLUSH;
     break;
-    case CCV_L0MT: stopped_op = Env::BK_FLUSH;
+    case CCV_L0MT: stopped_op = Env::BK_TOTAL;
     break;
-    case CCV_DL: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
+    case CCV_DL: stopped_op = Env::BK_FLUSH;
     break;
-    case CCV_DLMT: stopped_op = compaction_nothing_todo_when_dlcc_.load(std::memory_order_relaxed)? Env::BK_TOTAL : Env::BK_L0CMP;
+    case CCV_DLMT: stopped_op = Env::BK_TOTAL;
     break;
     case CCV_DLL0: stopped_op = Env::BK_FLUSH;
     break;
