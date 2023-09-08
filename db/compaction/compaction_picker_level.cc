@@ -603,7 +603,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
       size_t output_level_input_limit;
       if(start_level_ == 0 && output_level_ == 1){
         double multiplier = (mutable_cf_options_.write_buffer_size / mutable_cf_options_.target_file_size_base);
-        output_level_input_limit = output_level_target_num * multiplier;
+        output_level_input_limit = (output_level_target_num * multiplier);
         if((output_level_inputs.size() > output_level_input_limit) && !l0_ccv){
           is_abandon = true;
         }

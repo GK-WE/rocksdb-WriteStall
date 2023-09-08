@@ -125,7 +125,10 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
     auto* vstorage = current->storage_info();
     int l0_sst_num = vstorage->l0_delay_trigger_count();
     int l0_sst_limit = mutable_cf_options.level0_slowdown_writes_trigger;
-    if(l0_sst_num > (int)(l0_sst_limit*(3/4))){
+//    if(l0_sst_num > (int)(l0_sst_limit*(3/4))){
+//      result += 1;
+//    }
+    if(l0_sst_num > l0_sst_limit){
       result += 1;
     }
   }
@@ -167,13 +170,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CCV_MT: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH: IO_LOW;
     break;
-    case CCV_L0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH)?IO_STOP:IO_LOW); // Flush stopped;
+    case CCV_L0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH)?IO_STOP:IO_LOW); // flush stopped;
     break;
-    case CCV_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: IO_LOW;
+    case CCV_L0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_DLCMP)? IO_LOW : IO_STOP); //flush stopped
     break;
     case CCV_DL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: (background_op==Env::BK_FLUSH) ? IO_STOP:IO_LOW ; // flush stopped;
     break;
-    case CCV_DLMT: io_pri = (background_op == Env::BK_L0CMP)? IO_LOW : IO_HIGH ;
+    case CCV_DLMT: io_pri = (background_op == Env::BK_L0CMP)? IO_LOW : ((background_op==Env::BK_FLUSH) ? IO_STOP : IO_HIGH) ; //flush stopped
     break;
     case CCV_DLL0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: (background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW; // Flush stopped;
     break;
@@ -207,11 +210,11 @@ Env::BackgroundOp InputRateController::DecideStoppedBackgroundOp(int cur_ccv,int
     break;
     case CCV_L0: stopped_op = Env::BK_FLUSH;
     break;
-    case CCV_L0MT: stopped_op = Env::BK_TOTAL;
+    case CCV_L0MT: stopped_op = Env::BK_FLUSH;
     break;
     case CCV_DL: stopped_op = Env::BK_FLUSH;
     break;
-    case CCV_DLMT: stopped_op = Env::BK_TOTAL;
+    case CCV_DLMT: stopped_op = Env::BK_FLUSH;
     break;
     case CCV_DLL0: stopped_op = Env::BK_FLUSH;
     break;
