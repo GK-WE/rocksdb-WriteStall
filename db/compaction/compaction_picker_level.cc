@@ -245,23 +245,23 @@ void LevelCompactionBuilder::SetupInitialFiles() {
   // Find the compactions by size on all levels.
   bool skipped_l0_to_base = false;
   LogCompactionScoreInfo();
-  int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
-  bool dl_ccv = (ccv >> 2) & 1;
-  bool l0_ccv = (ccv >> 1) & 1;
+//  int ccv = InputRateController::DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
+//  bool dl_ccv = (ccv >> 2) & 1;
+//  bool l0_ccv = (ccv >> 1) & 1;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
     if (start_level_score_ >= 1) {
 
-      if(ioptions_.input_rate_cotroller_enabled){
-        if(start_level_ == 0 && dl_ccv){
-          if((i + 1) < (compaction_picker_->NumberLevels() - 1)
-              && vstorage_->CompactionScore(i + 1) > 1){
-            continue;
-          }
-        }
-      }
+//      if(ioptions_.input_rate_cotroller_enabled){
+//        if(start_level_ == 0 && dl_ccv && !l0_ccv){
+//          if((i + 1) < (compaction_picker_->NumberLevels() - 1)
+//              && vstorage_->CompactionScore(i + 1) > 1){
+//            continue;
+//          }
+//        }
+//      }
 
       if (skipped_l0_to_base && start_level_ == vstorage_->base_level()) {
         // If L0->base_level compaction is pending, don't schedule further
@@ -552,7 +552,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   }
 
   start_level_inputs_.clear();
-  start_level_inputs_.abandon_outputlevel_toolarge = false;
+//  start_level_inputs_.abandon_outputlevel_toolarge = false;
 
   assert(start_level_ >= 0);
 
@@ -566,7 +566,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   unsigned int cmp_idx;
   for (cmp_idx = vstorage_->NextCompactionIndex(start_level_);
        cmp_idx < file_size.size(); cmp_idx++) {
-    start_level_inputs_.abandon_outputlevel_toolarge = false;
+//    start_level_inputs_.abandon_outputlevel_toolarge = false;
     int index = file_size[cmp_idx];
     auto* f = level_files[index];
 
@@ -609,42 +609,42 @@ bool LevelCompactionBuilder::PickFileToCompact() {
 
     //if the total size of output level files involved in compaction is greater than
     // the target level size of output level. We should wait the output level compacted
-    bool is_abandon = false;
-    if(ioptions_.input_rate_cotroller_enabled &&
-        mutable_cf_options_.target_file_size_multiplier == 1){
-      int ccv = ioptions_.input_rate_controller->DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
-      bool l0_ccv = (ccv >> 1) & 1;
-      bool dl_ccv = (ccv >> 2) & 1;
-      uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
-      size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
-      size_t output_level_input_limit;
-      if(start_level_ == 0 && output_level_ == 1){
-        double multiplier = (mutable_cf_options_.write_buffer_size / mutable_cf_options_.target_file_size_base);
-        output_level_input_limit = (output_level_target_num * multiplier);
-        if((output_level_inputs.size() > output_level_input_limit) && !l0_ccv){
-          is_abandon = true;
-        }
-      }else{
-        output_level_input_limit = start_level_inputs_.size() * mutable_cf_options_.max_bytes_for_level_multiplier;
-        if((output_level_inputs.size() > output_level_input_limit) && !dl_ccv){
-          is_abandon = true;
-        }
-      }
-      if(is_abandon){
-        ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: OutputLevelInputs TOO LARGE: "
-                         "start_level: %d "
-                         "output_level: %d "
-                         "output_level_input_num: %d "
-                         "output_level_input_limit: %d ",
-                          start_level_,
-                          output_level_,
-                          output_level_inputs.size(),
-                          output_level_input_limit);
-        start_level_inputs_.abandon_outputlevel_toolarge = true;
-        start_level_inputs_.clear();
-        continue;
-      }
-    }
+//    bool is_abandon = false;
+//    if(ioptions_.input_rate_cotroller_enabled &&
+//        mutable_cf_options_.target_file_size_multiplier == 1){
+//      int ccv = ioptions_.input_rate_controller->DecideCurDiskWriteStallCondition(vstorage_,mutable_cf_options_);
+//      bool l0_ccv = (ccv >> 1) & 1;
+//      bool dl_ccv = (ccv >> 2) & 1;
+//      uint64_t output_level_target_size = vstorage_->MaxBytesForLevel(output_level_);
+//      size_t output_level_target_num = (size_t)(output_level_target_size / mutable_cf_options_.target_file_size_base);
+//      size_t output_level_input_limit;
+//      if(start_level_ == 0 && output_level_ == 1){
+//        double multiplier = (mutable_cf_options_.write_buffer_size / mutable_cf_options_.target_file_size_base);
+//        output_level_input_limit = (output_level_target_num * multiplier);
+//        if((output_level_inputs.size() > output_level_input_limit) && !l0_ccv){
+//          is_abandon = true;
+//        }
+//      }else{
+//        output_level_input_limit = start_level_inputs_.size() * mutable_cf_options_.max_bytes_for_level_multiplier;
+//        if((output_level_inputs.size() > output_level_input_limit) && !dl_ccv){
+//          is_abandon = true;
+//        }
+//      }
+//      if(is_abandon){
+//        ROCKS_LOG_BUFFER(log_buffer_, "CompactionAbandon: OutputLevelInputs TOO LARGE: "
+//                         "start_level: %d "
+//                         "output_level: %d "
+//                         "output_level_input_num: %d "
+//                         "output_level_input_limit: %d ",
+//                          start_level_,
+//                          output_level_,
+//                          output_level_inputs.size(),
+//                          output_level_input_limit);
+//        start_level_inputs_.abandon_outputlevel_toolarge = true;
+//        start_level_inputs_.clear();
+//        continue;
+//      }
+//    }
 
     base_index_ = index;
     break;

@@ -55,7 +55,7 @@ struct CompactionInputFiles {
   int level;
   std::vector<FileMetaData*> files;
   std::vector<AtomicCompactionUnitBoundary> atomic_compaction_unit_boundaries;
-  bool abandon_outputlevel_toolarge;
+//  bool abandon_outputlevel_toolarge;
   inline bool empty() const { return files.empty(); }
   inline size_t size() const { return files.size(); }
   inline void clear() { files.clear(); }
