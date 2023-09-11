@@ -267,17 +267,34 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
         // may starve.
-        if((ioptions_.input_rate_cotroller_enabled && (!dl_ccv || l0_ccv) && !start_level_inputs_.abandon_outputlevel_toolarge) ||
-            (!ioptions_.input_rate_cotroller_enabled)){
-          ROCKS_LOG_BUFFER(
-              log_buffer_,
-              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction: DL-CCV: %s TooLargeL1: %s input_rate_cotroller_enabled: %s ",
-              cf_name_.c_str(),
-              dl_ccv?"true":"false",
-              start_level_inputs_.abandon_outputlevel_toolarge?"true":"false",
-              ioptions_.input_rate_cotroller_enabled?"true":"false");
-          continue;
-        }
+//        if((ioptions_.input_rate_cotroller_enabled && (!dl_ccv || l0_ccv) && !start_level_inputs_.abandon_outputlevel_toolarge) ||
+//            (!ioptions_.input_rate_cotroller_enabled)){
+//          ROCKS_LOG_BUFFER(
+//              log_buffer_,
+//              "[%s] Starving L1-L2 Compaction due to pending L0-L1 Compaction: DL-CCV: %s TooLargeL1: %s input_rate_cotroller_enabled: %s ",
+//              cf_name_.c_str(),
+//              dl_ccv?"true":"false",
+//              start_level_inputs_.abandon_outputlevel_toolarge?"true":"false",
+//              ioptions_.input_rate_cotroller_enabled?"true":"false");
+//          continue;
+//        }
+//        if(!ioptions_.input_rate_cotroller_enabled){
+//          continue;
+//        }else{
+//          ROCKS_LOG_BUFFER(
+//              log_buffer_,
+//              "[%s] DON'T starve L1-L2 Compaction: "
+//              "DL-CCV: %s "
+//              "L0-CCV: %s "
+//              "TooLargeL1: %s "
+//              "input_rate_cotroller_enabled: %s ",
+//              cf_name_.c_str(),
+//              dl_ccv?"true":"false",
+//              l0_ccv?"true":"false",
+//              start_level_inputs_.abandon_outputlevel_toolarge?"true":"false",
+//              ioptions_.input_rate_cotroller_enabled?"true":"false");
+//        }
+        continue;
       }
       output_level_ =
           (start_level_ == 0) ? vstorage_->base_level() : start_level_ + 1;

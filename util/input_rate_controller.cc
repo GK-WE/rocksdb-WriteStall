@@ -130,7 +130,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
 //      result += 1;
 //    }
     if(l0_sst_num > l0_sst_limit){
-      result += 1;
+      result += 2;
     }
   }
   if(prev_DL && (!cur_DL)){
@@ -145,7 +145,7 @@ int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const Mut
 //        estimated_pending_dlcompaction_limit);
     uint64_t cmp_bytes_limit = mutable_cf_options.hard_pending_compaction_bytes_limit;
     if(cmp_bytes_needed > (uint64_t)(cmp_bytes_limit*(1/2))){
-      result += 2;
+      result += 4;
     }
   }
   return result;
