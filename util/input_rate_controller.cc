@@ -106,15 +106,16 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
   return result;
 }
 
-int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int ccv_cur) {
+int InputRateController::DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ccv) {
   int result = InputRateController::CUSHION_NORMAL;
-  bool prev_L0 = (ccv_cur >> 1) & 1;
-  bool prev_DL = (ccv_cur >> 2) & 1;
-  bool cur_L0 = (ccv_cur >> 1) & 1;
-  bool cur_DL = (ccv_cur >> 2) & 1;
-  int pre_ccv = prev_write_stall_condition_.load(std::memory_order_relaxed);
+  bool cur_L0 = (cur_ccv >> 1) & 1;
+  bool cur_DL = (cur_ccv >> 2) & 1;
 
-  if( pre_ccv == ccv_cur || pre_ccv == CCV_NORMAL){
+  int pre_ccv = prev_write_stall_condition_.load(std::memory_order_relaxed);
+  bool prev_L0 = (pre_ccv >> 1) & 1;
+  bool prev_DL = (pre_ccv >> 2) & 1;
+
+  if( pre_ccv == cur_ccv || pre_ccv == CCV_NORMAL){
     return result;
   }
   if(prev_L0 && (!cur_L0)){
