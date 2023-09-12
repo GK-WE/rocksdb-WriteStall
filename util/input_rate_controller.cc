@@ -73,7 +73,7 @@ int InputRateController::DecideCurDiskWriteStallCondition(VersionStorageInfo* vs
   uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes();
 //  uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
-  bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
+  bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
 //  bool DL = (estimated_compaction_needed_bytes >=
 //      (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
 //                 estimated_pending_dlcompaction_limit));
@@ -95,7 +95,7 @@ int InputRateController::DecideCurWriteStallCondition(ColumnFamilyData* cfd,
 //    uint64_t estimated_compaction_needed_bytes = vstorage->estimated_compaction_needed_bytes_deeperlevel();
 
     bool MT = (num_unflushed_memtables >= mutable_cf_options.max_write_buffer_number);
-    bool L0 = (num_l0_sst >= mutable_cf_options.level0_stop_writes_trigger);
+    bool L0 = (num_l0_sst >= mutable_cf_options.level0_slowdown_writes_trigger);
 //    bool DL = (estimated_compaction_needed_bytes >=
 //        (uint64_t)((mutable_cf_options.hard_pending_compaction_bytes_limit) *
 //        estimated_pending_dlcompaction_limit));
