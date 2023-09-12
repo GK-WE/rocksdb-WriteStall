@@ -527,7 +527,7 @@ IOStatus WritableFileWriter::WriteBuffered(
         bool need_request_token = false;
         bool need_return_token = false;
         if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-          input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+          input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
         }
 
         if (need_request_token) {
@@ -638,7 +638,7 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
   bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
   }
   if (need_request_token) {
     while (data_size > 0) {
@@ -783,7 +783,7 @@ IOStatus WritableFileWriter::WriteDirect(
     bool need_request_token = false;
     bool need_return_token = false;
     if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-      input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+      input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
     }
     if (need_request_token) {
       size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
@@ -902,7 +902,7 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
   bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
   }
   if (need_request_token) {
     while (data_size > 0) {

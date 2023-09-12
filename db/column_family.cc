@@ -39,6 +39,7 @@
 #include "util/autovector.h"
 #include "util/cast_util.h"
 #include "util/compression.h"
+#include "util/input_rate_controller.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -940,10 +941,13 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
                                     vstorage->l0_delay_trigger_count(),
                                     vstorage->estimated_compaction_needed_bytes());
 
+    if(ioptions_.input_rate_cotroller_enabled){
+      ioptions_.input_rate_controller->SetCurCFDInfo(name_, vstorage,imm()->NumNotFlushed(), mutable_cf_options);
+    }
+
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
         imm()->NumNotFlushed(), vstorage->l0_delay_trigger_count(),
         vstorage->estimated_compaction_needed_bytes(),
-//        vstorage->estimated_compaction_needed_bytes_deeperlevel(),
         mutable_cf_options, *ioptions());
     write_stall_condition = write_stall_condition_and_cause.first;
     auto write_stall_cause = write_stall_condition_and_cause.second;
