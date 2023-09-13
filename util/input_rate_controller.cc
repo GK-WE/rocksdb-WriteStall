@@ -154,7 +154,7 @@ void InputRateController::UpdateCushion() {
     if((previous_cc == current_cc || previous_cc == CC_NORMAL)
     && (!maybe_l0_restore_stage)
     && (!maybe_dl_restore_stage)){
-      continue;
+      return;
     }else{
       if(maybe_l0_restore_stage && (!cur_L0)){
         //if L0-CC was previously violated and now is not
@@ -191,7 +191,7 @@ void InputRateController::UpdateStoppedOp() {
           break;
           case CUSHION_L0: stopped = Env::BK_FLUSH;
           break;
-          case CUSHION_EC: stopped = Env::BK_FLUSH;
+          case CUSHION_EC: stopped = Env::BK_L0CMP;
           break;
           case CUSHION_ECL0: stopped = Env::BK_FLUSH;
           break;
@@ -205,7 +205,7 @@ void InputRateController::UpdateStoppedOp() {
           break;
           case CUSHION_L0: stopped = Env::BK_FLUSH;
           break;
-          case CUSHION_EC: stopped = Env::BK_FLUSH;
+          case CUSHION_EC: stopped = Env::BK_L0CMP;
           break;
           case CUSHION_ECL0: stopped = Env::BK_FLUSH;
           break;
@@ -217,9 +217,33 @@ void InputRateController::UpdateStoppedOp() {
       break;
       case CC_L0MT: stopped = Env::BK_FLUSH;
       break;
-      case CC_EC: stopped = Env::BK_FLUSH;
+      case CC_EC:
+        switch (current_cushion) {
+          case CUSHION_NORMAL: stopped = Env::BK_L0CMP;
+          break;
+          case CUSHION_L0: stopped = Env::BK_FLUSH;
+          break;
+          case CUSHION_EC: stopped = Env::BK_L0CMP;
+          break;
+          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
+          break;
+          default: stopped = Env::BK_TOTAL;
+          break;
+        }
       break;
-      case CC_ECMT: stopped = Env::BK_FLUSH;
+      case CC_ECMT:
+        switch (current_cushion) {
+          case CUSHION_NORMAL: stopped = Env::BK_L0CMP;
+          break;
+          case CUSHION_L0: stopped = Env::BK_FLUSH;
+          break;
+          case CUSHION_EC: stopped = Env::BK_L0CMP;
+          break;
+          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
+          break;
+          default: stopped = Env::BK_TOTAL;
+          break;
+        }
       break;
       case CC_ECL0: stopped = Env::BK_FLUSH;
       break;
@@ -248,13 +272,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
   switch (current_cc) {
     case CC_NORMAL:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_LOW: ((background_op == Env::BK_L0CMP)?IO_HIGH:IO_TOTAL);
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_TOTAL: ((background_op == Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //none stopped
           break;
-          case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+          case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
           break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+          case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW); //l0 cmp stopped
           break;
-          case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+          case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
           break;
         default: io_pri = IO_TOTAL;
           break;
@@ -262,13 +286,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CC_MT:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH)? IO_HIGH: IO_LOW;
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_HIGH : IO_LOW; //none stopped
         break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW); //l0 cmp stopped
         break;
-        case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
         default: io_pri = IO_TOTAL;
         break;
@@ -276,13 +300,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CC_L0:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_FLUSH)?IO_STOP:IO_LOW); // flush stopped;
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); // flush stopped;
         break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+        case CUSHION_EC: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
         default: io_pri = IO_TOTAL;
         break;
@@ -290,13 +314,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CC_L0MT:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op == Env::BK_DLCMP)? IO_LOW : IO_STOP); //flush stopped
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+        case CUSHION_EC: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
         default: io_pri = IO_TOTAL;
         break;
@@ -304,13 +328,13 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CC_EC:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_DLCMP)? IO_HIGH: (background_op==Env::BK_FLUSH) ? IO_STOP:IO_LOW ; // flush stopped;
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; // l0 cmp stopped;
         break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; //flush stopped
         break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP: (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
         break;
-        case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
         default: io_pri = IO_TOTAL;
         break;
@@ -318,21 +342,21 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
     break;
     case CC_ECMT:
       switch (current_cushion) {
-        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP)? IO_LOW : ((background_op==Env::BK_FLUSH) ? IO_STOP : IO_HIGH) ; //flush stopped
+        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
         break;
-        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH)? IO_STOP : ((background_op==Env::BK_L0CMP)?IO_HIGH:IO_LOW); //flush stopped
+        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
-        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_LOW : ((background_op==Env::BK_DLCMP)?IO_HIGH:IO_STOP); //flush stopped
+        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
         break;
-        case CUSHION_ECL0: io_pri = (background_op == Env::BK_L0CMP) ? IO_HIGH : ((background_op==Env::BK_DLCMP)?IO_LOW:IO_STOP); //flush stopped
+        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
         break;
         default: io_pri = IO_TOTAL;
         break;
       }
     break;
-    case CC_ECL0: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: (background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW; // Flush stopped;
+    case CC_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; // flush stopped;
     break;
-    case CC_ECL0MT: io_pri = (background_op == Env::BK_L0CMP)? IO_HIGH: ((background_op==Env::BK_FLUSH)?IO_STOP:IO_LOW); //flush stopped
+    case CC_ECL0MT: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; //flush stopped
     break;
     default: io_pri = IO_TOTAL;
     break;
@@ -444,7 +468,7 @@ if(stopped_op.find(cfd_name) != stopped_op.end() &&
       }
       int64_t wait_until = clock_->NowMicros() + low_bkop_max_wait_us;
       r.cv.TimedWait(wait_until);
-    }while(true);
+    }while(!stop_);
 
     if(need_debug_info_){
       ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-FinishWait-Signaled: "
