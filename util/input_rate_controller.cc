@@ -464,7 +464,7 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
 }
 
 InputRateController::BackgroundOp_Priority InputRateController::DecideBackgroundOpPriority(Env::BackgroundOp background_op,std::string name){
-  request_mutex_.AssertHeld();
+//  request_mutex_.AssertHeld();
   InputRateController::BackgroundOp_Priority pri;
   if(op_pri.find(name)!=op_pri.end()){
     pri = op_pri[name][background_op];
@@ -474,234 +474,28 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
   return pri;
 }
 
-//void InputRateController::UpdateStoppedOp() {
-//  request_mutex_.AssertHeld();
-//  for(auto &cfd : cur_cfd_info){
-//    int current_cc = cur_cc[cfd.first];
-//    int current_cushion = cushion[cfd.first];
-//    Env::BackgroundOp stopped;
-//    switch (current_cc) {
-//      case CC_NORMAL:
-//        switch (current_cushion) {
-//          case CUSHION_NORMAL: stopped = Env::BK_TOTAL;
-//          break;
-//          case CUSHION_L0: stopped = Env::BK_FLUSH;
-//          break;
-//          case CUSHION_EC: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
-//          break;
-//          default: stopped = Env::BK_TOTAL;
-//          break;
-//        }
-//        break;
-//      case CC_MT:
-//        switch (current_cushion) {
-//          case CUSHION_NORMAL: stopped = Env::BK_TOTAL;
-//          break;
-//          case CUSHION_L0: stopped = Env::BK_FLUSH;
-//          break;
-//          case CUSHION_EC: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
-//          break;
-//          default: stopped = Env::BK_TOTAL;
-//          break;
-//        }
-//        break;
-//      case CC_L0: stopped = Env::BK_FLUSH;
-//      break;
-//      case CC_L0MT: stopped = Env::BK_FLUSH;
-//      break;
-//      case CC_EC:
-//        switch (current_cushion) {
-//          case CUSHION_NORMAL: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_L0: stopped = Env::BK_FLUSH;
-//          break;
-//          case CUSHION_EC: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
-//          break;
-//          default: stopped = Env::BK_TOTAL;
-//          break;
-//        }
-//      break;
-//      case CC_ECMT:
-//        switch (current_cushion) {
-//          case CUSHION_NORMAL: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_L0: stopped = Env::BK_FLUSH;
-//          break;
-//          case CUSHION_EC: stopped = Env::BK_L0CMP;
-//          break;
-//          case CUSHION_ECL0: stopped = Env::BK_FLUSH;
-//          break;
-//          default: stopped = Env::BK_TOTAL;
-//          break;
-//        }
-//      break;
-//      case CC_ECL0: stopped = Env::BK_FLUSH;
-//      break;
-//      case CC_ECL0MT: stopped = Env::BK_FLUSH;
-//      break;
-//      default: stopped = Env::BK_TOTAL;
-//      break;
-//    }
-//    stopped_op[cfd.first] = stopped;
-//  }
-//
-//}
-
-//InputRateController::BackgroundOp_Priority InputRateController::DecideBackgroundOpPriority(Env::BackgroundOp background_op,std::string name) {
-//  request_mutex_.AssertHeld();
-//  InputRateController::BackgroundOp_Priority io_pri;
-//  int current_cc;
-//  int current_cushion;
-//  if(cur_cc.find(name) == cur_cc.end()){
-//    current_cc = CC_NORMAL;
-//    current_cushion = CUSHION_NORMAL;
-//  }else{
-//    current_cc = cur_cc[name];
-//    current_cushion = cushion[name];
-//  }
-//  switch (current_cc) {
-//    case CC_NORMAL:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_TOTAL: ((background_op == Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //none stopped
-//          break;
-//          case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//          break;
-//          case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW); //l0 cmp stopped
-//          break;
-//          case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//          break;
-//        default: io_pri = IO_TOTAL;
-//          break;
-//      }
-//    break;
-//    case CC_MT:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_HIGH : IO_LOW; //none stopped
-//        break;
-//        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : ((background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW); //l0 cmp stopped
-//        break;
-//        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        default: io_pri = IO_TOTAL;
-//        break;
-//      }
-//    break;
-//    case CC_L0:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); // flush stopped;
-//        break;
-//        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_EC: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        default: io_pri = IO_TOTAL;
-//        break;
-//      }
-//    break;
-//    case CC_L0MT:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_EC: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        default: io_pri = IO_TOTAL;
-//        break;
-//      }
-//    break;
-//    case CC_EC:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; // l0 cmp stopped;
-//        break;
-//        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; //flush stopped
-//        break;
-//        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP: (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
-//        break;
-//        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        default: io_pri = IO_TOTAL;
-//        break;
-//      }
-//    break;
-//    case CC_ECMT:
-//      switch (current_cushion) {
-//        case CUSHION_NORMAL: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
-//        break;
-//        case CUSHION_L0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        case CUSHION_EC: io_pri = (background_op == Env::BK_L0CMP) ? IO_STOP : (background_op==Env::BK_DLCMP) ? IO_HIGH : IO_LOW; //l0 cmp stopped
-//        break;
-//        case CUSHION_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : ((background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW); //flush stopped
-//        break;
-//        default: io_pri = IO_TOTAL;
-//        break;
-//      }
-//    break;
-//    case CC_ECL0: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; // flush stopped;
-//    break;
-//    case CC_ECL0MT: io_pri = (background_op == Env::BK_FLUSH) ? IO_STOP : (background_op==Env::BK_L0CMP) ? IO_HIGH : IO_LOW; //flush stopped
-//    break;
-//    default: io_pri = IO_TOTAL;
-//    break;
-//  }
-//
-//  return io_pri;
-//}
-
-void InputRateController::DecideIfNeedRequestAndReturnToken(ColumnFamilyData* cfd,
-                                                            Env::BackgroundOp background_op,
-//                                                            const MutableCFOptions& mutable_cf_options,
-                                                            bool& need_request_token, bool& need_return_token) {
-  MutexLock g(&request_mutex_);
-  BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(
-      background_op, cfd->GetName());
-  need_request_token = (io_pri != IO_TOTAL);
-  need_return_token = (io_pri == IO_HIGH);
-
-  if(need_debug_info_){
-    ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] DecideIfNeedRequestReturnToken: background_op: %s "
-                                           "io_pri: %s "
-                                           "cc_cur: %s "
-                                           "cc_cushion: %s "
-                                           "need_request_token: %s "
-                                           "need_return_token: %s ",cfd->GetName().c_str(),
-                                           BackgroundOpString(background_op).c_str(),
-                                           BackgroundOpPriorityString(io_pri).c_str(),
-                                           CCConditionString(cur_cc[cfd->GetName()]).c_str(),
-                                           CushionString(cushion[cfd->GetName()]).c_str(),
-                                           need_request_token?"true":"false",
-                                           need_return_token?"true":"false");
-  }
-}
-
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
                                          ColumnFamilyData* cfd,
-                                         Env::BackgroundOp background_op) {
+                                         Env::BackgroundOp background_op,
+                                         bool& need_return_token) {
   if (alignment > 0) {
     bytes = std::max(alignment, TruncateToPageBoundary(alignment, bytes));
   }
-  Request(bytes,cfd,background_op);
+  Request(bytes,cfd,background_op,need_return_token);
   return bytes;
 }
 
 void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
-                                  Env::BackgroundOp background_op) {
-  MutexLock g(&request_mutex_);
+                                  Env::BackgroundOp background_op,
+                                  bool& need_return_token) {
+
   std::string cfd_name = cfd->GetName();
   InputRateController::BackgroundOp_Priority pri = DecideBackgroundOpPriority(background_op,cfd_name);
+  need_return_token = false;
+  if(pri==IO_TOTAL) {
+    return;
+  }
+  MutexLock g(&request_mutex_);
   int current_cc = cur_cc[cfd_name];
   int current_cushion = cushion[cfd_name];
   if(need_debug_info_){
@@ -718,9 +512,7 @@ void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
                                            CushionString(current_cushion).c_str());
   }
 
-  if(pri==IO_TOTAL) {
-    return;
-  }
+
 
   if(need_debug_info_){
     ROCKS_LOG_INFO(cfd->ioptions()->logger,"[%s] RequestToken-GotMutex: "
@@ -771,7 +563,7 @@ if(pri == IO_STOP){
                                              "io_pri: %s "
                                              "bytes: %zu "
                                              "cc_when_req_issue: %s "
-                     "cushion_when_req_issue: %s "
+                                              "cushion_when_req_issue: %s "
                                              "cc_when_req_signaled: %s "
                                              "req: %p "
                                              "signaled_reason: %s "
@@ -780,7 +572,7 @@ if(pri == IO_STOP){
                                              BackgroundOpPriorityString(pri).c_str(),
                                              bytes,
                                              CCConditionString(current_cc).c_str(),
-                     CushionString(current_cushion).c_str(),
+                                             CushionString(current_cushion).c_str(),
                                              CCConditionString(cur_cc[cfd_name]).c_str(),
                                              &r,
                                              TSReasonString(r.signaled_reason).c_str(),
@@ -791,6 +583,7 @@ if(pri == IO_STOP){
                                                                    stopped_bkop_queue_[cfd_name][background_op].end(), &r),
                                                        stopped_bkop_queue_[cfd_name][background_op].end());
   }else if(pri == IO_HIGH){
+  need_return_token = true;
     ++cur_high_;
   }else if(pri == IO_LOW){
     Req r(bytes, &request_mutex_, background_op,current_cc,current_cushion,TSREASON_TOTAL, Env::BK_NONE);

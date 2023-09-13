@@ -524,16 +524,10 @@ IOStatus WritableFileWriter::WriteBuffered(
                                             RateLimiter::OpType::kWrite);
     }
 
-        bool need_request_token = false;
         bool need_return_token = false;
         if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-          input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
+          allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,need_return_token);
         }
-
-        if (need_request_token) {
-          allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
-        }
-
 
     {
       IOSTATS_TIMER_GUARD(write_nanos);
@@ -634,15 +628,11 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
     }
   }
 
-  bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
-  }
-  if (need_request_token) {
     while (data_size > 0) {
       size_t tmp_size;
-      tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
+      tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,need_return_token);
       data_size -= tmp_size;
     }
   }
@@ -778,13 +768,9 @@ IOStatus WritableFileWriter::WriteDirect(
                                          RateLimiter::OpType::kWrite);
     }
 
-    bool need_request_token = false;
     bool need_return_token = false;
     if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-      input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
-    }
-    if (need_request_token) {
-      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_, need_return_token);
     }
 
     {
@@ -896,15 +882,11 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
     }
   }
 
-  bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
-  }
-  if (need_request_token) {
     while (data_size > 0) {
       size_t size;
-      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_, need_return_token);
       data_size -= size;
     }
   }
