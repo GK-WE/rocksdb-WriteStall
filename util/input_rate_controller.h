@@ -70,6 +70,8 @@ class InputRateController{
 
   void UpdateCushion();
 
+  void UpdateBackgroundOpPri();
+
   void UpdateStoppedOp();
 
 //  int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
@@ -112,7 +114,8 @@ class InputRateController{
   std::map<std::string,int> cur_cc;
   std::map<std::string,int> prev_cc;
   std::map<std::string,int> cushion;
-  std::map<std::string,Env::BackgroundOp> stopped_op;
+//  std::map<std::string,Env::BackgroundOp> stopped_op;
+  std::map<std::string,std::map<Env::BackgroundOp, BackgroundOp_Priority>> op_pri;
   bool need_debug_info_;
 
 };
