@@ -527,12 +527,11 @@ IOStatus WritableFileWriter::WriteBuffered(
         bool need_request_token = false;
         bool need_return_token = false;
         if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-          input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+          input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
         }
 
         if (need_request_token) {
-          allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
-                                                         *(cfd_->GetCurrentMutableCFOptions()));
+          allowed = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
         }
 
 
@@ -638,13 +637,12 @@ IOStatus WritableFileWriter::WriteBufferedWithChecksum(
   bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
   }
   if (need_request_token) {
     while (data_size > 0) {
       size_t tmp_size;
-      tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
-                                                      *(cfd_->GetCurrentMutableCFOptions()));
+      tmp_size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
       data_size -= tmp_size;
     }
   }
@@ -783,11 +781,10 @@ IOStatus WritableFileWriter::WriteDirect(
     bool need_request_token = false;
     bool need_return_token = false;
     if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-      input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+      input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
     }
     if (need_request_token) {
-      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
-                                                  *(cfd_->GetCurrentMutableCFOptions()));
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
     }
 
     {
@@ -902,13 +899,12 @@ IOStatus WritableFileWriter::WriteDirectWithChecksum(
   bool need_request_token = false;
   bool need_return_token = false;
   if ((input_rate_controller_ != nullptr) && (cfd_!= nullptr)){
-    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,*(cfd_->GetCurrentMutableCFOptions()),need_request_token,need_return_token);
+    input_rate_controller_->DecideIfNeedRequestAndReturnToken(cfd_,background_op_,need_request_token,need_return_token);
   }
   if (need_request_token) {
     while (data_size > 0) {
       size_t size;
-      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_,
-                                                  *(cfd_->GetCurrentMutableCFOptions()));
+      size = input_rate_controller_->RequestToken(left,0,cfd_, background_op_);
       data_size -= size;
     }
   }

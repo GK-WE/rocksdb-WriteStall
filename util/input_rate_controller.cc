@@ -343,7 +343,7 @@ InputRateController::BackgroundOp_Priority InputRateController::DecideBackground
 
 void InputRateController::DecideIfNeedRequestAndReturnToken(ColumnFamilyData* cfd,
                                                             Env::BackgroundOp background_op,
-                                                            const MutableCFOptions& mutable_cf_options,
+//                                                            const MutableCFOptions& mutable_cf_options,
                                                             bool& need_request_token, bool& need_return_token) {
   MutexLock g(&request_mutex_);
   BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(
@@ -369,18 +369,16 @@ void InputRateController::DecideIfNeedRequestAndReturnToken(ColumnFamilyData* cf
 
 size_t InputRateController::RequestToken(size_t bytes, size_t alignment,
                                          ColumnFamilyData* cfd,
-                                         Env::BackgroundOp background_op,
-                                         const MutableCFOptions& mutable_cf_options) {
+                                         Env::BackgroundOp background_op) {
   if (alignment > 0) {
     bytes = std::max(alignment, TruncateToPageBoundary(alignment, bytes));
   }
-  Request(bytes,cfd,background_op,mutable_cf_options);
+  Request(bytes,cfd,background_op);
   return bytes;
 }
 
 void InputRateController::Request(size_t bytes, ColumnFamilyData* cfd,
-                                  Env::BackgroundOp background_op,
-                                  const MutableCFOptions& mutable_cf_options) {
+                                  Env::BackgroundOp background_op) {
   MutexLock g(&request_mutex_);
   std::string cfd_name = cfd->GetName();
   InputRateController::BackgroundOp_Priority io_pri = DecideBackgroundOpPriority(background_op,cfd_name);

@@ -54,10 +54,10 @@ class InputRateController{
     TSREASON_TOTAL
   };
 
-  void DecideIfNeedRequestAndReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options, bool& need_request_token, bool& need_return_token);
+  void DecideIfNeedRequestAndReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op, bool& need_request_token, bool& need_return_token);
 
   size_t RequestToken(size_t bytes, size_t alignment,
-                      ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
+                      ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
   void ReturnToken(ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
@@ -78,7 +78,7 @@ class InputRateController{
 
 //  Env::BackgroundOp DecideStoppedBackgroundOp(int cur_ws,int cushion);
 
-  void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op, const MutableCFOptions& mutable_cf_options);
+  void Request(size_t bytes, ColumnFamilyData* cfd, Env::BackgroundOp background_op);
 
     static std::string BackgroundOpPriorityString(BackgroundOp_Priority io_pri);
 
