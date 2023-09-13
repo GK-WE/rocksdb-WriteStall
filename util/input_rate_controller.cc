@@ -89,31 +89,52 @@ InputRateController::~InputRateController() {
   }
 }
 
-void InputRateController::SetCurCFDInfo(std::string name, VersionStorageInfo* vstorage, int mem, const MutableCFOptions& mutable_cf_options) {
+void InputRateController::SetCurCFDInfo(ColumnFamilyData* cfd, VersionStorageInfo* vstorage, int mem, const MutableCFOptions& mutable_cf_options) {
   MutexLock g(&request_mutex_);
+  std::string name = cfd->GetName();
   InfoCFD* new_cfd_info = new InfoCFD(name,vstorage,mem,mutable_cf_options);
+  int pre_pre_ec = 0;
+  int pre_ec = 0;
+  int cur_ec = 0;
   if(cur_cfd_info.find(name)==cur_cfd_info.end()){
     cur_cfd_info[name] = new_cfd_info;
     prev_cfd_info[name] = nullptr;
   }else{
     if(prev_cfd_info[name] != nullptr){
+      pre_pre_ec = prev_cfd_info[name]->vstorage->estimated_compaction_needed_bytes() >> 20;
       delete prev_cfd_info[name];
     }
     prev_cfd_info[name] = cur_cfd_info[name];
     cur_cfd_info[name] = new_cfd_info;
+    pre_ec = prev_cfd_info[name]->vstorage->estimated_compaction_needed_bytes() >> 20;
+    cur_ec = cur_cfd_info[name]->vstorage->estimated_compaction_needed_bytes() >> 20;
+
+    ROCKS_LOG_INFO(cfd->ioptions()->logger, "[%s] UpdateCFDInfo: "
+                                            "pre-pre-ECsize: %d (MB) "
+                                            "pre-ECsize: %d (MB) "
+                                            "cur-ECsize: %d (MB) ",cfd->GetName().c_str(),
+                                            pre_pre_ec,
+                                            pre_ec,
+                                            cur_ec);
   }
-  UpdateCC();
-  UpdateCushion();
-  UpdateBackgroundOpPri();
+  UpdateCC(cfd);
+  UpdateCushion(cfd);
+  UpdateBackgroundOpPri(cfd);
 //  UpdateStoppedOp();
 }
 
-void InputRateController::UpdateCC() {
+void InputRateController::UpdateCC(ColumnFamilyData* cur_cfd) {
   request_mutex_.AssertHeld();
   for(auto &cfd : cur_cfd_info){
+    if(cfd.first != cur_cfd->GetName()){
+      continue;
+    }
+    int pre_pre_cc;
     if(cur_cc.find(cfd.first) != cur_cc.end()){
+      pre_pre_cc = prev_cc[cfd.first];
       prev_cc[cfd.first] = cur_cc[cfd.first];
     }else{
+      pre_pre_cc = CC_NORMAL;
       prev_cc[cfd.first] = CC_NORMAL;
     }
     const MutableCFOptions& mutable_cf_options = cfd.second->mutable_cf_options;
@@ -125,12 +146,22 @@ void InputRateController::UpdateCC() {
     bool EC = (estimated_compaction_needed_bytes >=
         (mutable_cf_options.hard_pending_compaction_bytes_limit));
     cur_cc[cfd.first] = (MT ? 1 : 0) + (L0 ? 2 : 0) + (EC ? 4 : 0);
+    ROCKS_LOG_INFO(cur_cfd->ioptions()->logger, "[%s] UpdateCFDInfo-UpdateCC: "
+                                            "pre-pre-CC: %s "
+                                            "pre-CC: %s "
+                                            "cur-CC: %s ",cur_cfd->GetName().c_str(),
+                   CCConditionString(pre_pre_cc).c_str(),
+                   CCConditionString(prev_cc[cfd.first]).c_str(),
+                   CCConditionString(cur_cc[cfd.first]).c_str());
   }
 }
 
-void InputRateController::UpdateCushion() {
+void InputRateController::UpdateCushion(ColumnFamilyData* cur_cfd) {
   request_mutex_.AssertHeld();
   for(auto &cfd : cur_cfd_info){
+    if(cfd.first != cur_cfd->GetName()){
+      continue;
+    }
     int  current_cc = cur_cc[cfd.first];
     int  previous_cc = prev_cc[cfd.first];
 
@@ -152,9 +183,10 @@ void InputRateController::UpdateCushion() {
     bool maybe_dl_restore_stage = (previous_cushion == CUSHION_EC) ||
         (previous_cushion == CUSHION_ECL0);
 
-    if((previous_cc == current_cc || previous_cc == CC_NORMAL)
+    if((previous_cc == current_cc) ||
+    (previous_cc == CC_NORMAL
     && (!maybe_l0_restore_stage)
-    && (!maybe_dl_restore_stage)){
+    && (!maybe_dl_restore_stage))){
       return;
     }else{
       if(maybe_l0_restore_stage && (!cur_L0)){
@@ -176,12 +208,20 @@ void InputRateController::UpdateCushion() {
         }
       }
     }
+    ROCKS_LOG_INFO(cur_cfd->ioptions()->logger, "[%s] UpdateCFDInfo-UpdateCushion: "
+                                                "pre-Cushion(pre_pre_CC~~pre_CC): %s "
+                                                "cur-Cushion(pre_CC~~cur_CC): %s ",cur_cfd->GetName().c_str(),
+                                                CushionString(previous_cushion).c_str(),
+                                                CushionString(cushion[cfd.first]).c_str());
   }
 }
 
-void InputRateController::UpdateBackgroundOpPri() {
+void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
   request_mutex_.AssertHeld();
   for(auto &cfd : cur_cfd_info){
+    if(cfd.first != cur_cfd->GetName()){
+      continue;
+    }
 //    InputRateController::BackgroundOp_Priority io_pri;
     std::string name = cfd.first;
     int current_cc;

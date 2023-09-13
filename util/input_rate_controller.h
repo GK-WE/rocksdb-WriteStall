@@ -63,16 +63,16 @@ class InputRateController{
 
 //  static int DecideCurWriteStallCondition(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options);
 
-  void SetCurCFDInfo(std::string name, VersionStorageInfo *vstorage, int mem, const MutableCFOptions& mutable_cf_options);
+void SetCurCFDInfo(ColumnFamilyData* cfd, VersionStorageInfo *vstorage, int mem, const MutableCFOptions& mutable_cf_options);
 
  private:
-  void UpdateCC();
+  void UpdateCC(ColumnFamilyData* cfd);
 
-  void UpdateCushion();
+  void UpdateCushion(ColumnFamilyData* cfd);
 
-  void UpdateBackgroundOpPri();
+  void UpdateBackgroundOpPri(ColumnFamilyData* cfd);
 
-  void UpdateStoppedOp();
+//  void UpdateStoppedOp();
 
 //  int DecideWriteStallChange(ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options, int cur_ws);
 

@@ -942,7 +942,7 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
                                     vstorage->estimated_compaction_needed_bytes());
 
     if(ioptions_.input_rate_cotroller_enabled){
-      ioptions_.input_rate_controller->SetCurCFDInfo(name_, vstorage,imm()->NumNotFlushed(), mutable_cf_options);
+      ioptions_.input_rate_controller->SetCurCFDInfo(column_family_set_->GetColumnFamily(name_), vstorage,imm()->NumNotFlushed(), mutable_cf_options);
     }
 
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
