@@ -94,8 +94,10 @@ void InputRateController::SetCurCFDInfo(ColumnFamilyData* cfd, VersionStorageInf
   std::string name = cfd->GetName();
   InfoCFD* new_cfd_info = new InfoCFD(name,vstorage,mem,mutable_cf_options);
   int pre_pre_ec = 0;
-  int pre_ec = 0;
-  int cur_ec = 0;
+  int pre_ec;
+  int cur_ec;
+  int pre_l0;
+  int cur_l0;
   if(cur_cfd_info.find(name)==cur_cfd_info.end()){
     cur_cfd_info[name] = new_cfd_info;
     prev_cfd_info[name] = nullptr;
@@ -108,14 +110,18 @@ void InputRateController::SetCurCFDInfo(ColumnFamilyData* cfd, VersionStorageInf
     cur_cfd_info[name] = new_cfd_info;
     pre_ec = prev_cfd_info[name]->vstorage->estimated_compaction_needed_bytes() >> 30;
     cur_ec = cur_cfd_info[name]->vstorage->estimated_compaction_needed_bytes() >> 30;
+    pre_l0 = prev_cfd_info[name]->vstorage->l0_delay_trigger_count();
+    cur_l0 = cur_cfd_info[name]->vstorage->l0_delay_trigger_count();
 
     ROCKS_LOG_INFO(cfd->ioptions()->logger, "[%s] ------------------UpdateCFDInfo------------------: "
                                             "pre-pre-ECsize: %d (GB) "
                                             "pre-ECsize: %d (GB) "
-                                            "cur-ECsize: %d (GB) ",cfd->GetName().c_str(),
+                                            "cur-ECsize: %d (GB) "
+                                            "pre-L0num: %d "
+                                            "cur-L0num: %d ",cfd->GetName().c_str(),
                                             pre_pre_ec,
-                                            pre_ec,
-                                            cur_ec);
+                                            pre_ec,cur_ec,
+                   pre_l0,cur_l0);
   }
   UpdateCC(cfd);
   UpdateCushion(cfd);
@@ -261,6 +267,9 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
     }
     int current_L0_cushion = current_cushion & 15;
     int current_EC_cushion = (current_cushion >> 4) & 15;
+    bool level1_too_large = cfd.second->vstorage->NumLevelFiles(1) >= 30 ;
+    bool level0_still_small = cfd.second->vstorage->l0_delay_trigger_count() < 10 ;
+//    bool should_stop_l0cmp = level1_too_large && level0_still_small;
     switch (current_cc) {
       case CC_NORMAL:
         if(current_cushion == 0 ){
@@ -287,8 +296,8 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
           op_pri[name][Env::BK_L0CMP] = IO_HIGH;
           op_pri[name][Env::BK_DLCMP] = IO_LOW;
         }else if(current_EC_cushion){
-          op_pri[name][Env::BK_FLUSH] = IO_LOW;
-          op_pri[name][Env::BK_L0CMP] = IO_STOP;
+          op_pri[name][Env::BK_FLUSH] = level1_too_large ? IO_LOW : IO_STOP;
+          op_pri[name][Env::BK_L0CMP] = level1_too_large ? IO_STOP : (level0_still_small ? IO_LOW : IO_HIGH);
           op_pri[name][Env::BK_DLCMP] = IO_HIGH;
         }
         break;
@@ -303,13 +312,13 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
         op_pri[name][Env::BK_DLCMP] = IO_LOW;
         break;
       case CC_EC:
-        op_pri[name][Env::BK_FLUSH] = IO_LOW;
-        op_pri[name][Env::BK_L0CMP] = IO_STOP;
+        op_pri[name][Env::BK_FLUSH] = level1_too_large ? IO_LOW : IO_STOP;
+        op_pri[name][Env::BK_L0CMP] = level1_too_large ? IO_STOP : (level0_still_small ? IO_LOW : IO_HIGH);
         op_pri[name][Env::BK_DLCMP] = IO_HIGH;
         break;
       case CC_ECMT:
-        op_pri[name][Env::BK_FLUSH] = IO_LOW;
-        op_pri[name][Env::BK_L0CMP] = IO_STOP;
+        op_pri[name][Env::BK_FLUSH] = level1_too_large ? IO_LOW : IO_STOP;
+        op_pri[name][Env::BK_L0CMP] = level1_too_large ? IO_STOP : (level0_still_small ? IO_LOW : IO_HIGH);
         op_pri[name][Env::BK_DLCMP] = IO_HIGH;
         break;
       case CC_ECL0:
