@@ -38,12 +38,22 @@ class InputRateController{
     CC_TOTAL = 8
   };
 
+  // bitwise 0000 0000 --> (keep EC-CC hit, decrease EC, increase EC, normal EC, keep L0, decrease L0, increase L0, normal L0)
   enum ComponentConstraintViolation_Cushion{
-    CUSHION_NORMAL = 0,
-    CUSHION_L0 = 1, // prev state include CC_L0, but now L0 is not decreased to a safe value
-    CUSHION_EC = 2, //pre state include CC_EC, but now EC is not decreased to a safe value
-    CUSHION_ECL0 = 3, // both L0 and EC
-    CUSHION_TOTAL
+    CUSHION_NO_EC_NO_L0 = 0,
+    CUSHION_NO_EC_INC_L0 = 2,// 0000 0010
+    CUSHION_NO_EC_DEC_L0 = 4, // 0000 0100
+    CUSHION_NO_EC_KEEP_L0 = 8,// 0000 1000
+    CUSHION_INC_EC_NO_L0 =  32,// 0010 0000
+    CUSHION_DEC_EC_NO_L0 =  64,// 0100 0000
+    CUSHION_KEEP_EC_NO_L0 = 128 // 1000 0000
+  };
+
+  enum Cushion_State{
+    CUSHION_STATE_NORMAL = 0,
+    CUSHION_STATE_INC = 2,
+    CUSHION_STATE_DEC = 4,
+    CUSHION_STATE_KEEP = 8
   };
 
   enum ThreadSignaledReason{
