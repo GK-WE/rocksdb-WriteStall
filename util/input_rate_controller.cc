@@ -267,9 +267,11 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
     }
     int current_L0_cushion = current_cushion & 15;
     int current_EC_cushion = (current_cushion >> 4) & 15;
-    bool level1_too_large = cfd.second->vstorage->NumLevelFiles(1) >= 30 ;
-    bool level0_still_small = cfd.second->vstorage->l0_delay_trigger_count() < 10 ;
-//    bool should_stop_l0cmp = level1_too_large && level0_still_small;
+    bool level1_too_large = cfd.second->vstorage->NumLevelBytes(1) >=
+        (cfd.second->mutable_cf_options.write_buffer_size *
+        cfd.second->mutable_cf_options.level0_file_num_compaction_trigger * 2);
+    bool level0_still_small = cfd.second->vstorage->l0_delay_trigger_count() <
+        (cfd.second->mutable_cf_options.level0_file_num_compaction_trigger * 2) ;
     switch (current_cc) {
       case CC_NORMAL:
         if(current_cushion == 0 ){
