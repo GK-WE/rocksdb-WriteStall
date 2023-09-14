@@ -190,10 +190,10 @@ void InputRateController::UpdateCushion(ColumnFamilyData* cur_cfd) {
       ec_decrease_to_safe = true;
     }
 
-    int cur_L0_cushion = 0;
-    int pre_L0_cushion = (previous_cushion & 7);
-    int cur_EC_cushion = 0;
-    int pre_EC_cushion = ((previous_cushion >> 4) & 7);
+    int cur_L0_cushion;
+    int pre_L0_cushion = (previous_cushion & 15);
+    int cur_EC_cushion;
+    int pre_EC_cushion = ((previous_cushion >> 4) & 15);
     if(cur_L0){
       //check if previous is also L0-CC
       if(prev_L0){
@@ -206,9 +206,9 @@ void InputRateController::UpdateCushion(ColumnFamilyData* cur_cfd) {
       //current is below L0 limit
       //check if it is in decrease stage but not to
       if(pre_L0_cushion == CUSHION_STATE_NORMAL){
-        cur_L0_cushion = 0;
+        cur_L0_cushion = CUSHION_STATE_NORMAL;
       }else if(l0_decrease_to_safe){
-        cur_L0_cushion = 0;
+        cur_L0_cushion = CUSHION_STATE_NORMAL;
       }else{
         cur_L0_cushion = CUSHION_STATE_DEC;
       }
@@ -259,8 +259,8 @@ void InputRateController::UpdateBackgroundOpPri(ColumnFamilyData* cur_cfd) {
       current_cc = cur_cc[name];
       current_cushion = cushion[name];
     }
-    int current_L0_cushion = current_cushion & 7;
-    int current_EC_cushion = (current_cushion >> 4) & 7;
+    int current_L0_cushion = current_cushion & 15;
+    int current_EC_cushion = (current_cushion >> 4) & 15;
     switch (current_cc) {
       case CC_NORMAL:
         if(current_cushion == 0 ){
@@ -673,8 +673,8 @@ std::string InputRateController::CCConditionString(int cc) {
 
 std::string InputRateController::CushionString(int cu) {
   std::string res = "CUSHION_";
-  int L0_cushion = (cu & 7) ;
-  int EC_cushion = (cu >> 4) & 7;
+  int L0_cushion = (cu & 15) ;
+  int EC_cushion = (cu >> 4) & 15;
 
   switch (EC_cushion) {
     case CUSHION_STATE_NORMAL:
