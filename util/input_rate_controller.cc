@@ -9,6 +9,7 @@
 
 namespace ROCKSDB_NAMESPACE{
 const int64_t low_bkop_max_wait_us = 100000; // 1/10 sec
+const double ec_size_cushion = (1);
 //const int64_t low_dlcmp_max_wait_us = 200000; // 4/10 sec
 struct InputRateController::Req {
   explicit Req(int64_t _bytes, port::Mutex* _mu, Env::BackgroundOp _background_op,
@@ -192,7 +193,7 @@ void InputRateController::UpdateCushion(ColumnFamilyData* cur_cfd) {
     }
     uint64_t cmp_bytes_needed = cfd.second->vstorage->estimated_compaction_needed_bytes();
     uint64_t cmp_bytes_limit = cfd.second->mutable_cf_options.hard_pending_compaction_bytes_limit;
-    if(cmp_bytes_needed <= (uint64_t)(cmp_bytes_limit*(1/2))){
+    if(cmp_bytes_needed <= (uint64_t)(cmp_bytes_limit*ec_size_cushion)){
       ec_decrease_to_safe = true;
     }
 
