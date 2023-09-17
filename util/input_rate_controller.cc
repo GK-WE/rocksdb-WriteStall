@@ -187,7 +187,7 @@ void InputRateController::UpdateCushion(ColumnFamilyData* cur_cfd) {
     bool l0_decrease_to_safe = false;
     bool ec_decrease_to_safe = false;
     int l0_sst_num = cfd.second->vstorage->l0_delay_trigger_count();
-    int l0_sst_limit = 0;
+    int l0_sst_limit = cfd.second->mutable_cf_options.level0_file_num_compaction_trigger;
     if(l0_sst_num <= l0_sst_limit){
       l0_decrease_to_safe = true;
     }
